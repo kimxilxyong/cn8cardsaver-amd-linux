@@ -45,7 +45,7 @@ Temperature control:
 
 Example:
 ```
-cn8cardsaver-amd.exe -o pool.monero.hashvault.pro:5555 -u 422KmQPiuCE7GdaAuvGxyYScin46HgBWMQo4qcRpcY88855aeJrNYWd3ZqE4BKwjhA2BJwQY7T2p6CUmvwvabs8vQqZAzLN.Monerogh -p Monero2-amd-gh --variant 2 --nicehash --max-gpu-temp=64 --gpu-temp-falloff=7
+cn8cardsaver-amd.exe --max-gpu-temp=64 --gpu-temp-falloff=7 -o pool.monero.hashvault.pro:5555 -u 422KmQPiuCE7GdaAuvGxyYScin46HgBWMQo4qcRpcY88855aeJrNYWd3ZqE4BKwjhA2BJwQY7T2p6CUmvwvabs8vQqZAzLN.Monerogh -p Monero2-amd-gh --variant 2 --nicehash
 ```
 
 Use [config.xmrig.com](https://config.xmrig.com/amd) to generate, edit or share configurations.
