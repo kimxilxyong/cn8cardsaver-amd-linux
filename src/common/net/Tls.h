@@ -21,8 +21,8 @@
  *   along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef XMRIG_TLS_H
-#define XMRIG_TLS_H
+#ifndef XMRIG_CLIENT_TLS_H
+#define XMRIG_CLIENT_TLS_H
 
 
 #include <openssl/ssl.h>
@@ -34,29 +34,29 @@
 class Client::Tls
 {
 public:
-    Tls(Client *client);
-    ~Tls();
+	Tls(Client *client);
+	~Tls();
 
-    bool handshake();
-    bool send(const char *data, size_t size);
-    const char *fingerprint() const;
-    const char *version() const;
-    void read(const char *data, size_t size);
+	bool handshake();
+	bool send(const char *data, size_t size);
+	const char *fingerprint() const;
+	const char *version() const;
+	void read(const char *data, size_t size);
 
 private:
-    bool send();
-    bool verify(X509 *cert);
-    bool verifyFingerprint(X509 *cert);
+	bool send();
+	bool verify(X509 *cert);
+	bool verifyFingerprint(X509 *cert);
 
-    BIO *m_readBio;
-    BIO *m_writeBio;
-    bool m_ready;
-    char m_buf[1024 * 2];
-    char m_fingerprint[32 * 2 + 8];
-    Client *m_client;
-    SSL *m_ssl;
-    SSL_CTX *m_ctx;
+	BIO *m_readBio;
+	BIO *m_writeBio;
+	bool m_ready;
+	char m_buf[1024 * 2];
+	char m_fingerprint[32 * 2 + 8];
+	Client *m_client;
+	SSL *m_ssl;
+	SSL_CTX *m_ctx;
 };
 
 
-#endif /* XMRIG_TLS_H */
+#endif /* XMRIG_CLIENT_TLS_H */

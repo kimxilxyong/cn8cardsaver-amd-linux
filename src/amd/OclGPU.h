@@ -35,18 +35,18 @@
 
 
 namespace xmrig {
-    class Config;
+	class Config;
 }
 
 
 class OclGPU
 {
 public:
-    static int findPlatformIdx(xmrig::Config *config);
-    static std::vector<GpuContext> getDevices(xmrig::Config *config);
+	static int findPlatformIdx(xmrig::Config *config);
+	static std::vector<GpuContext> getDevices(xmrig::Config *config);
 
 private:
-    static int findPlatformIdx(xmrig::OclVendor vendor, char *name, size_t nameSize);
+	static int findPlatformIdx(xmrig::OclVendor vendor, char *name, size_t nameSize);
 };
 
 

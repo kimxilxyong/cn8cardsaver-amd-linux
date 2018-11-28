@@ -38,6 +38,7 @@
 #include "Summary.h"
 #include "version.h"
 #include "workers/Workers.h"
+#include "uv/uv-common.h"
 
 
 #ifndef XMRIG_NO_HTTPD
@@ -64,9 +65,11 @@ App::App(int argc, char **argv) :
         m_console = new Console(this);
     }
 
+	
     uv_signal_init(uv_default_loop(), &m_sigHUP);
     uv_signal_init(uv_default_loop(), &m_sigINT);
     uv_signal_init(uv_default_loop(), &m_sigTERM);
+
 }
 
 
@@ -88,11 +91,11 @@ int App::exec()
     if (!m_controller->isReady()) {
         return 2;
     }
-
+	
     uv_signal_start(&m_sigHUP,  App::onSignal, SIGHUP);
     uv_signal_start(&m_sigINT,  App::onSignal, SIGINT);
     uv_signal_start(&m_sigTERM, App::onSignal, SIGTERM);
-
+	
     background();
 
     if (!CryptoNight::init(m_controller->config()->algorithm().algo())) {
@@ -122,6 +125,11 @@ int App::exec()
     m_httpd->start();
 #   endif
 
+	Workers::setMaxtemp(m_controller->config()->maxtemp());
+	Workers::setFalloff(m_controller->config()->falloff());
+
+
+
     if (!m_controller->oclInit() || !Workers::start(m_controller)) {
         LOG_ERR("Failed to start threads.");
         return 1;
@@ -129,12 +137,49 @@ int App::exec()
 
     m_controller->network()->connect();
 
-    const int r = uv_run(uv_default_loop(), UV_RUN_DEFAULT);
-    uv_loop_close(uv_default_loop());
-
+	int r;
+	int lc = 0;
+	r = uv_run(uv_default_loop(), UV_RUN_DEFAULT);
+	lc = uv_loop_close(uv_default_loop());
+	if (lc == UV_EBUSY) {
+		uv_walk(uv_default_loop(), App::on_uv_walk, NULL);
+		r = uv_run(uv_default_loop(), UV_RUN_ONCE);
+	}
+	lc = uv_loop_close(uv_default_loop());
+	if (lc == UV_EBUSY) {
+		LOG_ERR("Failed to close handles.");
+		r = uv_run(uv_default_loop(), UV_RUN_NOWAIT);
+	}
+	
     return r;
 }
 
+
+void App::on_uv_walk(uv_handle_t* handle, void* arg)
+{
+	if (!(handle->flags & UV_HANDLE_CLOSING)) {
+		uv_close(handle, App::on_uv_close);
+	}
+}
+
+void App::on_uv_close(uv_handle_t* handle)
+{
+	if (handle != NULL)
+	{
+		if (!(handle->flags & UV_HANDLE_CLOSED)) {
+
+			/*uv_signal_t* signal = (uv_signal_t*)handle;
+			int sig = signal->signum;
+			int psig = signal->pending_signum;
+			int deb = sig + psig;
+			*/
+			int lc = uv_loop_close(handle->loop);
+			if (lc == UV_EBUSY) {
+				uv_run(uv_default_loop(), UV_RUN_NOWAIT);
+			}
+		}
+	}
+}
 
 void App::onConsoleCommand(char command)
 {

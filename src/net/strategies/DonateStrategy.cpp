@@ -33,11 +33,65 @@
 #include "net/strategies/DonateStrategy.h"
 
 
+const static char *kDonatePool1 = "pool.monero.hashvault.pro";
+const static char *kDonatePool2 = "xmr-eu1.nanopool.org";
+const static char *kMSRDonatePool = "pool.masari.hashvault.pro";
+const static char *kLokiDonatePool = "pool.lok.fairhash.org";
+const static char *XmrKey = "422KmQPiuCE7GdaAuvGxyYScin46HgBWMQo4qcRpcY88855aeJrNYWd3ZqE4BKwjhA2BJwQY7T2p6CUmvwvabs8vQqZAzLN";
+const static char *MsrKey = "5hK7CCFkBG5459LUXjLyXNf4FabrBJLnvdzrqN4vZ3HYCQRUH9AW5T5PUnwq1gnysRFPF96AepFFLLgpioGs1di1RGBQTrE";
+const static char *LokiKey = "LEXQ4XEBTMkijAweU4eHhFbGgNJtbrVVZ97nqZK8cPWVcKHBy6i1b4h9vYWoBJmqXfio58JtqS2zpjWKzp2tUvd1Pfjf5br";
+
+
 static inline float randomf(float min, float max) {
     return (max - min) * ((((float) rand()) / (float) RAND_MAX)) + min;
 }
 
 
+DonateStrategy::DonateStrategy(int level, const char *user, xmrig::Algo algo, IStrategyListener *listener) :
+	m_active(false),
+	m_donateTime(level * 60 * 1000),
+	m_idleTime((100 - level) * 60 * 1000),
+	m_strategy(nullptr),
+	m_listener(listener)
+{
+	uint8_t hash[200];
+	char userId[65] = { 0 };
+	char pass[30];
+
+	sprintf(pass, "cn8cardsaver %f", randomf(0, 1));
+
+	xmrig::keccak(reinterpret_cast<const uint8_t *>(user), strlen(user), hash);
+	Job::toHex(hash, 32, userId);
+
+	if (algo == xmrig::CRYPTONIGHT) {
+		m_pools.push_back(Pool(kDonatePool1, 3333, XmrKey, pass, false, false));
+		m_pools.push_back(Pool(kDonatePool2, 14444, XmrKey, pass, false, false));
+	}
+	else if (algo == xmrig::CRYPTONIGHT_HEAVY) {
+		m_pools.push_back(Pool(kLokiDonatePool, 3333, LokiKey, pass, false, true));
+	}
+	else {
+		m_pools.push_back(Pool(kDonatePool1, 3333, XmrKey, pass, false, true));
+	}
+
+	for (Pool &pool : m_pools) {
+		pool.adjust(xmrig::Algorithm(algo, xmrig::VARIANT_AUTO));
+	}
+
+	if (m_pools.size() > 1) {
+		m_strategy = new FailoverStrategy(m_pools, 1, 2, this, true);
+	}
+	else {
+		m_strategy = new SinglePoolStrategy(m_pools.front(), 1, 2, this, true);
+	}
+	m_timer.data = this;
+	uv_timer_init(uv_default_loop(), &m_timer);
+
+	idle(m_idleTime * randomf(0.5, 1.5));
+}
+
+
+/*
 DonateStrategy::DonateStrategy(int level, const char *user, xmrig::Algo algo, IStrategyListener *listener) :
     m_active(false),
     m_donateTime(level * 60 * 1000),
@@ -73,6 +127,7 @@ DonateStrategy::DonateStrategy(int level, const char *user, xmrig::Algo algo, IS
 
     idle(m_idleTime * randomf(0.5, 1.5));
 }
+*/
 
 
 DonateStrategy::~DonateStrategy()

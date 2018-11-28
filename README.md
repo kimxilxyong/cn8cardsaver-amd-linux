@@ -1,7 +1,5 @@
 # CN8CardSaver AMD
 
-:warning: **[Monero changed PoW algorithm on October 18](https://github.com/xmrig/xmrig/issues/753), all miners updated to [v1.0.4+](https://github.com/xmrig/xmrig-amd/releases/tag/v2.8.3)** :warning:
-
 CN8CardSaver-amd is a high performance Monero (XMR) OpenCL AMD miner forked from XMRig-amd.
 
 cn8cardsaver (CryptoNight V1/2) is a miner for Monero XMR with GPU temperature control support. With it you can keep your expensive cards save.
@@ -21,9 +19,7 @@ Temperature control:
 * [Features](#features)
 * [Download](#download)
 * [Usage](#usage)
-* [Build](https://github.com/xmrig/xmrig-amd/wiki/Build)
 * [Donations](#donations)
-* [Release checksums](#release-checksums)
 * [Contacts](#contacts)
 
 ## Features
@@ -39,7 +35,7 @@ Temperature control:
 ## Download
 * Binary releases: https://github.com/kimxilxyong/cn8cardsaver-amd/releases
 * Git tree: https://github.com/kimxilxyong/cn8cardsaver-amd.git
-  * Clone with `git clone https://github.com/kimxilxyong/cn8cardsaver-amd.git`  :hammer: [Build instructions](https://github.com/xmrig/xmrig-amd/wiki/Build).
+  * Clone with `git clone https://github.com/kimxilxyong/cn8cardsaver-amd.git`
 
 ## Usage
 

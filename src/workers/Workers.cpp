@@ -25,7 +25,12 @@
 #include <cmath>
 #include <thread>
 
+#include <CL/cl_ext.h>
 
+#include "amd/OclCache.h"
+#include "amd/OclError.h"
+#include "amd/OclLib.h"
+#include "amd/AdlUtils.h"
 #include "amd/OclGPU.h"
 #include "api/Api.h"
 #include "common/log/Log.h"
@@ -40,10 +45,18 @@
 #include "workers/OclThread.h"
 #include "workers/OclWorker.h"
 #include "workers/Workers.h"
+#include "3rdparty/ADL/adl_sdk.h"
+#include "3rdparty/ADL/adl_defines.h"
+#include "3rdparty/ADL/adl_structures.h"
+#include "uv/uv-common.h"
+
 
 
 bool Workers::m_active = false;
 bool Workers::m_enabled = true;
+int Workers::m_maxtemp = 75;
+int Workers::m_falloff = 10;
+int Workers::m_workercount = 0;
 Hashrate *Workers::m_hashrate = nullptr;
 IJobResultListener *Workers::m_listener = nullptr;
 Job Workers::m_job;
@@ -62,7 +75,6 @@ cl_context Workers::m_opencl_ctx;
 
 static std::vector<GpuContext> contexts;
 
-
 struct JobBaton
 {
     uv_work_t request;
@@ -75,6 +87,24 @@ struct JobBaton
     }
 };
 
+void Workers::addWorkercount() 
+{	
+	uv_rwlock_rdlock(&m_rwlock);
+	m_workercount++;
+	uv_rwlock_rdunlock(&m_rwlock);
+}
+
+void Workers::removeWorkercount()
+{
+	uv_rwlock_rdlock(&m_rwlock);
+	m_workercount--;
+	uv_rwlock_rdunlock(&m_rwlock);
+}
+
+int Workers::getWorkercount()
+{
+	return m_workercount;
+}
 
 Job Workers::job()
 {
@@ -91,12 +121,10 @@ size_t Workers::hugePages()
     return 0;
 }
 
-
 size_t Workers::threads()
 {
-    return m_threadsCount;
+	return m_threadsCount;
 }
-
 
 void Workers::printHashrate(bool detail)
 {
@@ -111,12 +139,18 @@ void Workers::printHashrate(bool detail)
         char num2[8] = { 0 };
         char num3[8] = { 0 };
 
-        Log::i()->text("%s| THREAD | GPU | 10s H/s | 60s H/s | 15m H/s |", isColors ? "\x1B[1;37m" : "");
+        Log::i()->text("%s| THREAD | GPU | TEMP | 10s H/s | 60s H/s | 15m H/s |", isColors ? "\x1B[1;37m" : "");
+		
+		ADL_CONTEXT_HANDLE context;
+		AdlUtils::InitADL(&context);
 
         size_t i = 0;
+		size_t lt = 0;
         for (const xmrig::IThread *thread : m_controller->config()->threads()) {
-             Log::i()->text("| %6zu | %3zu | %7s | %7s | %7s |",
+			if (lt != thread->index()) {lt = thread->index(); }
+			Log::i()->text("| %6zu | %3zu | %4u | %7s | %7s | %7s |",
                             i, thread->index(),
+							AdlUtils::Temperature(context, lt),
                             Hashrate::format(m_hashrate->calc(i, Hashrate::ShortInterval), num1, sizeof num1),
                             Hashrate::format(m_hashrate->calc(i, Hashrate::MediumInterval), num2, sizeof num2),
                             Hashrate::format(m_hashrate->calc(i, Hashrate::LargeInterval), num3, sizeof num3)
@@ -124,6 +158,7 @@ void Workers::printHashrate(bool detail)
 
              i++;
         }
+		AdlUtils::ReleaseADL(context);
     }
 
     m_hashrate->print();
@@ -143,6 +178,17 @@ void Workers::setEnabled(bool enabled)
 
     m_paused = enabled ? 0 : 1;
     m_sequence++;
+}
+
+
+void Workers::setMaxtemp(int maxtemp)
+{
+	m_maxtemp = maxtemp;
+}
+
+void Workers::setFalloff(int falloff)
+{
+	m_falloff = falloff;
 }
 
 
@@ -169,76 +215,78 @@ void Workers::setJob(const Job &job, bool donate)
 bool Workers::start(xmrig::Controller *controller)
 {
 #   ifdef APP_DEBUG
-    LOG_NOTICE("THREADS ------------------------------------------------------------------");
-    for (const xmrig::IThread *thread : controller->config()->threads()) {
-        thread->print();
-    }
-    LOG_NOTICE("--------------------------------------------------------------------------");
+	LOG_NOTICE("THREADS ------------------------------------------------------------------");
+	for (const xmrig::IThread *thread : controller->config()->threads()) {
+		thread->print();
+	}
+	LOG_NOTICE("--------------------------------------------------------------------------");
 #   endif
 
-    m_controller = controller;
-    const std::vector<xmrig::IThread *> &threads = controller->config()->threads();
-    size_t ways = 0;
+	m_controller = controller;
+	const std::vector<xmrig::IThread *> &threads = controller->config()->threads();
+	size_t ways = 0;
 
-    for (const xmrig::IThread *thread : threads) {
-       ways += thread->multiway();
-    }
+	for (const xmrig::IThread *thread : threads) {
+		ways += thread->multiway();
+	}
 
-    m_threadsCount = threads.size();
-    m_hashrate = new Hashrate(m_threadsCount, controller);
+	m_threadsCount = threads.size();
+	m_hashrate = new Hashrate(m_threadsCount, controller);
 
-    uv_mutex_init(&m_mutex);
-    uv_rwlock_init(&m_rwlock);
+	uv_mutex_init(&m_mutex);
+	uv_rwlock_init(&m_rwlock);
 
-    m_sequence = 1;
-    m_paused   = 1;
+	m_sequence = 1;
+	m_paused = 1;
 
-    uv_async_init(uv_default_loop(), &m_async, Workers::onResult);
+	uv_async_init(uv_default_loop(), &m_async, Workers::onResult);
 
-    contexts.resize(m_threadsCount);
+	contexts.resize(m_threadsCount);
 
-    const bool isCNv2 = controller->config()->isCNv2();
-    for (size_t i = 0; i < m_threadsCount; ++i) {
-        const OclThread *thread = static_cast<OclThread *>(threads[i]);
-        if (isCNv2 && thread->stridedIndex() == 1) {
-            LOG_WARN("%sTHREAD #%zu: \"strided_index\":1 is not compatible with CryptoNight variant 2",
-                     controller->config()->isColors() ? "\x1B[1;33m" : "", i);
-        }
+	const bool isCNv2 = controller->config()->isCNv2();
+	for (size_t i = 0; i < m_threadsCount; ++i) {
+		const OclThread *thread = static_cast<OclThread *>(threads[i]);
+		if (isCNv2 && thread->stridedIndex() == 1) {
+			LOG_WARN("%sTHREAD #%zu: \"strided_index\":1 is not compatible with CryptoNight variant 2",
+				controller->config()->isColors() ? "\x1B[1;33m" : "", i);
+		}
 
-        contexts[i] = GpuContext(thread->index(),
-                                 thread->intensity(),
-                                 thread->worksize(),
-                                 thread->stridedIndex(),
-                                 thread->memChunk(),
-                                 thread->isCompMode(),
-                                 thread->unrollFactor()
-                                 );
-    }
+		contexts[i] = GpuContext(thread->index(),
+			thread->intensity(),
+			thread->worksize(),
+			thread->stridedIndex(),
+			thread->memChunk(),
+			thread->isCompMode(),
+			thread->unrollFactor()
+		);
+	}
 
-    if (InitOpenCL(contexts.data(), m_threadsCount, controller->config(), &m_opencl_ctx) != 0) {
-        return false;
-    }
+	if (InitOpenCL(contexts.data(), m_threadsCount, controller->config(), &m_opencl_ctx) != 0) {
+		return false;
+	}
 
-    uv_timer_init(uv_default_loop(), &m_timer);
-    uv_timer_start(&m_timer, Workers::onTick, 500, 500);
+	uv_timer_init(uv_default_loop(), &m_timer);
+	uv_timer_start(&m_timer, Workers::onTick, 500, 500);
 
-    uint32_t offset = 0;
+	uint32_t offset = 0;
 
-    size_t i = 0;
-    for (xmrig::IThread *thread : threads) {
-        Handle *handle = new Handle(i, thread, &contexts[i], offset, ways);
-        offset += thread->multiway();
-        i++;
+	size_t i = 0;
+	for (xmrig::IThread *thread : threads) {
+		Handle *handle = new Handle(i, thread, &contexts[i], offset, ways);
+		offset += thread->multiway();
+		thread->setCtx(&contexts[i]);
 
-        m_workers.push_back(handle);
-        handle->start(Workers::onReady);
-    }
+		i++;
 
-    if (controller->config()->isShouldSave()) {
-        controller->config()->save();
-    }
+		m_workers.push_back(handle);
+		handle->start(Workers::onReady);
+	}
 
-    return true;
+	if (controller->config()->isShouldSave()) {
+		controller->config()->save();
+	}
+
+	return true;
 }
 
 
@@ -247,16 +295,22 @@ void Workers::stop()
     uv_timer_stop(&m_timer);
     m_hashrate->stop();
 
-    uv_close(reinterpret_cast<uv_handle_t*>(&m_async), nullptr);
     m_paused   = 0;
     m_sequence = 0;
 
     for (size_t i = 0; i < m_workers.size(); ++i) {
         m_workers[i]->join();
-        ReleaseOpenCl(m_workers[i]->ctx());
+		ReleaseOpenCl(m_workers[i]->ctx());
     }
-
-    ReleaseOpenClContext(m_opencl_ctx);
+	int i = 0;
+	while ((Workers::getWorkercount() > 0) && (i < 100)) {		
+		std::this_thread::sleep_for(std::chrono::milliseconds(200));
+		i++;
+	}
+	if (!(m_async.flags & UV_HANDLE_CLOSING) && !(m_async.flags & UV_HANDLE_CLOSED)) {
+		uv_close(reinterpret_cast<uv_handle_t*>(&m_async), nullptr);
+	}
+	ReleaseOpenClContext(m_opencl_ctx);
 }
 
 
@@ -266,7 +320,9 @@ void Workers::submit(const Job &result)
     m_queue.push_back(result);
     uv_mutex_unlock(&m_mutex);
 
-    uv_async_send(&m_async);
+	uv_async_send(&m_async);
+	
+	return;
 }
 
 
@@ -350,7 +406,6 @@ void Workers::onResult(uv_async_t *handle)
     );
 }
 
-
 void Workers::onTick(uv_timer_t *handle)
 {
     for (Handle *handle : m_workers) {
@@ -365,7 +420,6 @@ void Workers::onTick(uv_timer_t *handle)
         m_hashrate->updateHighest();
     }
 }
-
 
 void Workers::start(IWorker *worker)
 {

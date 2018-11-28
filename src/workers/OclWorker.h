@@ -34,13 +34,13 @@
 #include "interfaces/IWorker.h"
 #include "net/JobResult.h"
 
-
 class Handle;
 
 
 class OclWorker : public IWorker
 {
 public:
+	
     OclWorker(Handle *handle);
 
 protected:

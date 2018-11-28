@@ -31,8 +31,8 @@
 class SubmitResult
 {
 public:
-    inline SubmitResult() : reqId(0), seq(0), diff(0), actualDiff(0), elapsed(0), start(0) {}
-    SubmitResult(int64_t seq, uint32_t diff, uint64_t actualDiff, int64_t reqId = 0);
+    inline SubmitResult() : reqId(0), seq(0), diff(0), actualDiff(0), elapsed(0), start(0), temp(0), needscooling(false), card(-1) {}
+    SubmitResult(int64_t seq, uint32_t diff, uint64_t actualDiff, int64_t reqId = 0, int temp = 0, bool needscooling = false, int card = -1);
 
     void done();
 
@@ -41,6 +41,9 @@ public:
     uint32_t diff;
     uint64_t actualDiff;
     uint64_t elapsed;
+	int temp;
+	bool needscooling;
+	int card;
 
 private:
     uint64_t start;

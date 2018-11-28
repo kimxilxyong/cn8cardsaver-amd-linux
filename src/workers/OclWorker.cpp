@@ -25,14 +25,26 @@
 
 #include <thread>
 
+ // This cl_ext is provided as part of the AMD APP SDK
+//#include <CL/cl.h>
+#include <CL/cl_ext.h>
 
+#include "amd/OclCache.h"
+#include "amd/OclError.h"
+#include "amd/OclLib.h"
 #include "amd/OclGPU.h"
+#include "amd/AdlUtils.h"
 #include "common/Platform.h"
 #include "crypto/CryptoNight.h"
 #include "workers/Handle.h"
 #include "workers/OclThread.h"
 #include "workers/OclWorker.h"
 #include "workers/Workers.h"
+#include "common/log/Log.h"
+#include "3rdparty\ADL\adl_sdk.h"
+#include "3rdparty\ADL\adl_defines.h"
+#include "3rdparty\ADL\adl_structures.h"
+
 
 
 OclWorker::OclWorker(Handle *handle) :
@@ -53,10 +65,17 @@ OclWorker::OclWorker(Handle *handle) :
 }
 
 
+
 void OclWorker::start()
 {
-    cl_uint results[0x100];
+	cl_uint results[0x100];
+	ADL_CONTEXT_HANDLE context;
+	CoolingContext cool;
 
+	Workers::addWorkercount();
+
+	AdlUtils::InitADL(&context);
+	
     while (Workers::sequence() > 0) {
         if (Workers::isPaused()) {
             do {
@@ -70,18 +89,29 @@ void OclWorker::start()
 
             consumeJob();
         }
-
+		
+		AdlUtils::DoCooling(context, m_ctx->deviceIdx, &cool);
+		
         while (!Workers::isOutdated(m_sequence)) {
+
+			LOG_DEBUG("**Card %u Temperature %i  iSleepFactor %i LastTemp %i NeedCooling %i ", m_ctx->deviceIdx, cool.Temp, cool.SleepFactor, cool.LastTemp, cool.NeedsCooling);
+			AdlUtils::DoCooling(context, m_ctx->deviceIdx, &cool);
+			
             memset(results, 0, sizeof(cl_uint) * (0x100));
 
             XMRRunJob(m_ctx, results, m_job.algorithm().variant());
 
             for (size_t i = 0; i < results[0xFF]; i++) {
                 *m_job.nonce() = results[i];
+				m_job.setTemp(cool.Temp);
+				m_job.setNeedscooling(cool.NeedsCooling);
+				m_job.setSleepFactor(cool.SleepFactor);
+				m_job.setCard(m_ctx->deviceIdx);
                 Workers::submit(m_job);
             }
 
             m_count += m_ctx->rawIntensity;
+			
 
             storeStats();
             std::this_thread::yield();
@@ -89,6 +119,8 @@ void OclWorker::start()
 
         consumeJob();
     }
+	AdlUtils::ReleaseADL(context);
+	Workers::removeWorkercount();
 }
 
 

@@ -45,6 +45,8 @@ public:
     inline size_t intensity() const { return m_intensity; }
     inline size_t worksize() const  { return m_worksize; }
 
+	inline GpuContext *ctx() const  { return m_ctx; }
+
     inline void setAffinity(int64_t affinity)  { m_affinity = affinity; }
     inline void setCompMode(bool enable)       { m_compMode = enable; }
     inline void setIndex(size_t index)         { m_index = index; }
@@ -61,6 +63,7 @@ public:
     void setMemChunk(int memChunk);
     void setStridedIndex(int stridedIndex);
     void setUnrollFactor(int unrollFactor);
+	void setCtx(GpuContext *ctx);
 
 protected:
 #   ifdef APP_DEBUG
@@ -72,6 +75,7 @@ protected:
 #   endif
 
     rapidjson::Value toConfig(rapidjson::Document &doc) const override;
+	
 
 private:
     bool m_compMode;
@@ -83,6 +87,7 @@ private:
     size_t m_intensity;
     size_t m_worksize;
     xmrig::Algo m_algorithm;
+	GpuContext *m_ctx;
 };
 
 

@@ -37,84 +37,91 @@
 namespace xmrig {
 
 
-class CommonConfig : public IConfig
-{
-public:
-    CommonConfig();
+	class CommonConfig : public IConfig
+	{
+	public:
+		CommonConfig();
 
-    inline bool isApiIPv6() const                  { return m_apiIPv6; }
-    inline bool isApiRestricted() const            { return m_apiRestricted; }
-    inline bool isAutoSave() const                 { return m_autoSave; }
-    inline bool isBackground() const               { return m_background; }
-    inline bool isColors() const                   { return m_colors; }
-    inline bool isDryRun() const                   { return m_dryRun; }
-    inline bool isSyslog() const                   { return m_syslog; }
-    inline const char *apiId() const               { return m_apiId.data(); }
-    inline const char *apiToken() const            { return m_apiToken.data(); }
-    inline const char *apiWorkerId() const         { return m_apiWorkerId.data(); }
-    inline const char *logFile() const             { return m_logFile.data(); }
-    inline const char *userAgent() const           { return m_userAgent.data(); }
-    inline const std::vector<Pool> &pools() const  { return m_activePools; }
-    inline int apiPort() const                     { return m_apiPort; }
-    inline int donateLevel() const                 { return m_donateLevel; }
-    inline int printTime() const                   { return m_printTime; }
-    inline int retries() const                     { return m_retries; }
-    inline int retryPause() const                  { return m_retryPause; }
-    inline void setColors(bool colors)             { m_colors = colors; }
+		inline bool isApiIPv6() const { return m_apiIPv6; }
+		inline bool isApiRestricted() const { return m_apiRestricted; }
+		inline bool isAutoSave() const { return m_autoSave; }
+		inline bool isBackground() const { return m_background; }
+		inline bool isColors() const { return m_colors; }
+		inline bool isDryRun() const { return m_dryRun; }
+		inline bool isSyslog() const { return m_syslog; }
+		inline const char *apiId() const { return m_apiId.data(); }
+		inline const char *apiToken() const { return m_apiToken.data(); }
+		inline const char *apiWorkerId() const { return m_apiWorkerId.data(); }
+		inline const char *logFile() const { return m_logFile.data(); }
+		inline const char *userAgent() const { return m_userAgent.data(); }
+		inline const std::vector<Pool> &pools() const { return m_activePools; }
+		inline int apiPort() const { return m_apiPort; }
+		inline int donateLevel() const { return m_donateLevel; }
+		inline int printTime() const { return m_printTime; }
+		inline int retries() const { return m_retries; }
+		inline int retryPause() const { return m_retryPause; }
+		inline void setColors(bool colors) { m_colors = colors; }
 
-    inline bool isWatch() const override               { return m_watch && !m_fileName.isNull(); }
-    inline const Algorithm &algorithm() const override { return m_algorithm; }
-    inline const char *fileName() const override       { return m_fileName.data(); }
+		inline int maxtemp() const { return m_maxtemp; }
+		inline int falloff() const { return m_falloff; }
 
-    bool save() override;
+		inline bool isWatch() const override { return m_watch && !m_fileName.isNull(); }
+		inline const Algorithm &algorithm() const override { return m_algorithm; }
+		inline const char *fileName() const override { return m_fileName.data(); }
 
-    void printAPI();
-    void printPools();
-    void printVersions();
+		bool save() override;
 
-protected:
-    enum State {
-        NoneState,
-        ReadyState,
-        ErrorState
-    };
+		void printAPI();
+		void printPools();
+		void printVersions();
 
-    bool finalize() override;
-    bool parseBoolean(int key, bool enable) override;
-    bool parseString(int key, const char *arg) override;
-    bool parseUint64(int key, uint64_t arg) override;
-    void setFileName(const char *fileName) override;
+	protected:
+		enum State {
+			NoneState,
+			ReadyState,
+			ErrorState
+		};
 
-    Algorithm m_algorithm;
-    bool m_adjusted;
-    bool m_apiIPv6;
-    bool m_apiRestricted;
-    bool m_autoSave;
-    bool m_background;
-    bool m_colors;
-    bool m_dryRun;
-    bool m_syslog;
-    bool m_watch;
-    int m_apiPort;
-    int m_donateLevel;
-    int m_printTime;
-    int m_retries;
-    int m_retryPause;
-    State m_state;
-    std::vector<Pool> m_activePools;
-    std::vector<Pool> m_pools;
-    xmrig::c_str m_apiId;
-    xmrig::c_str m_apiToken;
-    xmrig::c_str m_apiWorkerId;
-    xmrig::c_str m_fileName;
-    xmrig::c_str m_logFile;
-    xmrig::c_str m_userAgent;
+		bool finalize() override;
+		bool parseBoolean(int key, bool enable) override;
+		bool parseString(int key, const char *arg) override;
+		bool parseUint64(int key, uint64_t arg) override;
+		void setFileName(const char *fileName) override;
 
-private:
-    bool parseInt(int key, int arg);
-};
+		Algorithm m_algorithm;
+		bool m_adjusted;
+		bool m_apiIPv6;
+		bool m_apiRestricted;
+		bool m_autoSave;
+		bool m_background;
+		bool m_colors;
+		bool m_dryRun;
+		bool m_syslog;
+		bool m_watch;
+		int m_apiPort;
+		int m_donateLevel;
+		int m_maxtemp;
+		int m_falloff;
+		int m_printTime;
+		int m_retries;
+		int m_retryPause;
+		State m_state;
+		std::vector<Pool> m_activePools;
+		std::vector<Pool> m_pools;
+		xmrig::c_str m_apiId;
+		xmrig::c_str m_apiToken;
+		xmrig::c_str m_apiWorkerId;
+		xmrig::c_str m_fileName;
+		xmrig::c_str m_logFile;
+		xmrig::c_str m_userAgent;
+
+	private:
+		bool parseInt(int key, int arg);
+		Pool &currentPool();
+		void fixup();
+	};
 
 
 } /* namespace xmrig */
 
-#endif /* __COMMONCONFIG_H__ */
+#endif /* XMRIG_COMMONCONFIG_H */

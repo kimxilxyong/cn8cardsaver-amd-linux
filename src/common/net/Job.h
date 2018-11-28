@@ -39,7 +39,7 @@ class Job
 {
 public:
     Job();
-    Job(int poolId, bool nicehash, const xmrig::Algorithm &algorithm, const xmrig::Id &clientId);
+    Job(int poolId, bool nicehash, const xmrig::Algorithm &algorithm, const xmrig::Id &clientId, int temp, bool needscooling, int card);
     ~Job();
 
     bool setBlob(const char *blob);
@@ -56,6 +56,9 @@ public:
     inline const xmrig::Id &id() const                { return m_id; }
     inline int poolId() const                         { return m_poolId; }
     inline int threadId() const                       { return m_threadId; }
+	inline int temp() const							  { return m_temp; }
+	inline bool needscooling() const				  { return m_needscooling; }
+	inline int card() const							  { return m_card; }
     inline size_t size() const                        { return m_size; }
     inline uint32_t *nonce()                          { return reinterpret_cast<uint32_t*>(m_blob + 39); }
     inline uint32_t diff() const                      { return static_cast<uint32_t>(m_diff); }
@@ -66,6 +69,10 @@ public:
     inline void setThreadId(int threadId)             { m_threadId = threadId; }
     inline void setVariant(const char *variant)       { m_algorithm.parseVariant(variant); }
     inline void setVariant(int variant)               { m_algorithm.parseVariant(variant); }
+	inline void setTemp(int temp)					  { m_temp = temp; }
+	inline void setNeedscooling(bool needscooling)	  { m_needscooling = needscooling; }
+	inline void setCard(int card)					  { m_card = card; }
+	inline void setSleepFactor(int sleepfactor)       { m_sleepfactor = sleepfactor; }
 
 #   ifdef XMRIG_PROXY_PROJECT
     inline char *rawBlob()                 { return m_rawBlob; }
@@ -98,6 +105,10 @@ private:
     xmrig::Algorithm m_algorithm;
     xmrig::Id m_clientId;
     xmrig::Id m_id;
+	int m_temp;
+	bool m_needscooling;
+	int m_card;
+	int m_sleepfactor;
 
 #   ifdef XMRIG_PROXY_PROJECT
     char m_rawBlob[176];

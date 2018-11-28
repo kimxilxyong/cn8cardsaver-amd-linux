@@ -43,6 +43,8 @@ public:
         ApiRestrictedKey  = 4004,
         ApiWorkerIdKey    = 4002,
         ApiIdKey          = 4005,
+		MaxTempKey        = 4006,
+		FalloffKey        = 4007,
         BackgroundKey     = 'B',
         ColorKey          = 1002,
         ConfigKey         = 'c',

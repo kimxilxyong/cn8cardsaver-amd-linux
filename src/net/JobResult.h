@@ -35,13 +35,16 @@
 class JobResult
 {
 public:
-    inline JobResult() : poolId(0), diff(0), nonce(0) {}
-    inline JobResult(int poolId, const xmrig::Id &jobId, uint32_t nonce, const uint8_t *result, uint32_t diff, const xmrig::Algorithm &algorithm) :
+    inline JobResult() : poolId(0), diff(0), nonce(0), temp(0), needscooling(false), card(-1) {}
+    inline JobResult(int poolId, const xmrig::Id &jobId, uint32_t nonce, const uint8_t *result, uint32_t diff, const xmrig::Algorithm &algorithm, int temp, bool needscooling, int card) :
         poolId(poolId),
         diff(diff),
         nonce(nonce),
         algorithm(algorithm),
-        jobId(jobId)
+        jobId(jobId),
+		temp(temp),
+		needscooling(needscooling),
+		card(card)
     {
         memcpy(this->result, result, sizeof(this->result));
     }
@@ -54,6 +57,9 @@ public:
         diff      = job.diff();
         nonce     = *job.nonce();
         algorithm = job.algorithm();
+		temp      = job.temp();
+		needscooling = job.needscooling();
+		card      = job.card();
     }
 
 
@@ -69,6 +75,9 @@ public:
     uint8_t result[32];
     xmrig::Algorithm algorithm;
     xmrig::Id jobId;
+	int temp;
+	bool needscooling;
+	int card;
 };
 
 #endif /* __JOBRESULT_H__ */

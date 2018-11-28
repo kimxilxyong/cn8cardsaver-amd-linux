@@ -110,6 +110,10 @@ OclThread::~OclThread()
 {
 }
 
+void  OclThread::setCtx(GpuContext *ctx)
+{
+	m_ctx = ctx;
+}
 
 void OclThread::setMemChunk(int memChunk)
 {

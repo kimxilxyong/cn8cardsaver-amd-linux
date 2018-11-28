@@ -57,5 +57,8 @@ void Console::onRead(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf)
 
     if (nread == 1) {
         static_cast<Console*>(stream->data)->m_listener->onConsoleCommand(buf->base[0]);
+		if (buf->base[0] == 3) {
+			uv_close(reinterpret_cast<uv_handle_t*>(stream), nullptr);
+		}
     }
 }

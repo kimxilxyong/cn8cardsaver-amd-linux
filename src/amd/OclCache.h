@@ -30,34 +30,34 @@
 
 
 namespace xmrig {
-    class Config;
+	class Config;
 }
 
 
 class OclCache
 {
 public:
-    OclCache(int index, cl_context opencl_ctx, GpuContext *ctx, const char *source_code, xmrig::Config *config);
+	OclCache(int index, cl_context opencl_ctx, GpuContext *ctx, const char *source_code, xmrig::Config *config);
 
-    bool load();
+	bool load();
 
 private:
-    bool prepare(const char *options);
-    bool save(int dev_id, cl_uint num_devices) const;
-    cl_uint numDevices() const;
-    int amdDriverMajorVersion() const;
-    int devId(cl_uint num_devices) const;
-    void createDirectory() const;
+	bool prepare(const char *options);
+	bool save(int dev_id, cl_uint num_devices) const;
+	cl_uint numDevices() const;
+	int amdDriverMajorVersion() const;
+	int devId(cl_uint num_devices) const;
+	void createDirectory() const;
 
-    static std::string prefix();
-    static void sleep(size_t sec);
+	static std::string prefix();
+	static void sleep(size_t sec);
 
-    cl_context m_oclCtx;
-    const char *m_sourceCode;
-    GpuContext *m_ctx;
-    int m_index;
-    std::string m_fileName;
-    xmrig::Config *m_config;
+	cl_context m_oclCtx;
+	const char *m_sourceCode;
+	GpuContext *m_ctx;
+	int m_index;
+	std::string m_fileName;
+	xmrig::Config *m_config;
 };
 
 

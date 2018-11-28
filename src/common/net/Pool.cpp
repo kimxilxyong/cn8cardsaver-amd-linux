@@ -45,10 +45,10 @@
 
 
 Pool::Pool() :
-    m_nicehash(false),
-    m_tls(false),
-    m_keepAlive(0),
-    m_port(kDefaultPort)
+	m_nicehash(false),
+	m_tls(false),
+	m_keepAlive(0),
+	m_port(kDefaultPort)
 {
 }
 
@@ -65,343 +65,343 @@ Pool::Pool() :
  * @param url
  */
 Pool::Pool(const char *url) :
-    m_nicehash(false),
-    m_tls(false),
-    m_keepAlive(0),
-    m_port(kDefaultPort)
+	m_nicehash(false),
+	m_tls(false),
+	m_keepAlive(0),
+	m_port(kDefaultPort)
 {
-    parse(url);
+	parse(url);
 }
 
 
 Pool::Pool(const char *host, uint16_t port, const char *user, const char *password, int keepAlive, bool nicehash, bool tls) :
-    m_nicehash(nicehash),
-    m_tls(tls),
-    m_keepAlive(keepAlive),
-    m_port(port),
-    m_host(host),
-    m_password(password),
-    m_user(user)
+	m_nicehash(nicehash),
+	m_tls(tls),
+	m_keepAlive(keepAlive),
+	m_port(port),
+	m_host(host),
+	m_password(password),
+	m_user(user)
 {
-    const size_t size = m_host.size() + 8;
-    assert(size > 8);
+	const size_t size = m_host.size() + 8;
+	assert(size > 8);
 
-    char *url = new char[size]();
-    snprintf(url, size - 1, "%s:%d", m_host.data(), m_port);
+	char *url = new char[size]();
+	snprintf(url, size - 1, "%s:%d", m_host.data(), m_port);
 
-    m_url = url;
+	m_url = url;
 }
 
 
 bool Pool::isCompatible(const xmrig::Algorithm &algorithm) const
 {
-    if (m_algorithms.empty()) {
-        return true;
-    }
+	if (m_algorithms.empty()) {
+		return true;
+	}
 
-    for (const auto &a : m_algorithms) {
-        if (algorithm == a) {
-            return true;
-        }
-    }
+	for (const auto &a : m_algorithms) {
+		if (algorithm == a) {
+			return true;
+		}
+	}
 
 #   ifdef XMRIG_PROXY_PROJECT
-    if (m_algorithm.algo() == xmrig::CRYPTONIGHT && algorithm.algo() == xmrig::CRYPTONIGHT && m_algorithm.variant() == xmrig::VARIANT_XTL) {
-        return true;
-    }
+	if (m_algorithm.algo() == xmrig::CRYPTONIGHT && algorithm.algo() == xmrig::CRYPTONIGHT && m_algorithm.variant() == xmrig::VARIANT_XTL) {
+		return true;
+	}
 #   endif
 
-    return false;
+	return false;
 }
 
 
 bool Pool::isEqual(const Pool &other) const
 {
-    return (m_nicehash       == other.m_nicehash
-            && m_tls         == other.m_tls
-            && m_keepAlive   == other.m_keepAlive
-            && m_port        == other.m_port
-            && m_algorithm   == other.m_algorithm
-            && m_fingerprint == other.m_fingerprint
-            && m_host        == other.m_host
-            && m_password    == other.m_password
-            && m_rigId       == other.m_rigId
-            && m_url         == other.m_url
-            && m_user        == other.m_user);
+	return (m_nicehash == other.m_nicehash
+		&& m_tls == other.m_tls
+		&& m_keepAlive == other.m_keepAlive
+		&& m_port == other.m_port
+		&& m_algorithm == other.m_algorithm
+		&& m_fingerprint == other.m_fingerprint
+		&& m_host == other.m_host
+		&& m_password == other.m_password
+		&& m_rigId == other.m_rigId
+		&& m_url == other.m_url
+		&& m_user == other.m_user);
 }
 
 
 bool Pool::parse(const char *url)
 {
-    assert(url != nullptr);
+	assert(url != nullptr);
 
-    const char *p = strstr(url, "://");
-    const char *base = url;
+	const char *p = strstr(url, "://");
+	const char *base = url;
 
-    if (p) {
-        if (strncasecmp(url, "stratum+tcp://", 14) == 0) {
-            m_tls = false;
-        }
-        else if (strncasecmp(url, "stratum+ssl://", 14) == 0) {
-            m_tls = true;
-        }
-        else {
-            return false;
-        }
+	if (p) {
+		if (strncasecmp(url, "stratum+tcp://", 14) == 0) {
+			m_tls = false;
+		}
+		else if (strncasecmp(url, "stratum+ssl://", 14) == 0) {
+			m_tls = true;
+		}
+		else {
+			return false;
+		}
 
-        base = url + 14;
-    }
+		base = url + 14;
+	}
 
-    if (!strlen(base) || *base == '/') {
-        return false;
-    }
+	if (!strlen(base) || *base == '/') {
+		return false;
+	}
 
-    m_url = url;
-    if (base[0] == '[') {
-        return parseIPv6(base);
-    }
+	m_url = url;
+	if (base[0] == '[') {
+		return parseIPv6(base);
+	}
 
-    const char *port = strchr(base, ':');
-    if (!port) {
-        m_host = base;
-        return true;
-    }
+	const char *port = strchr(base, ':');
+	if (!port) {
+		m_host = base;
+		return true;
+	}
 
-    const size_t size = port++ - base + 1;
-    char *host        = new char[size]();
-    memcpy(host, base, size - 1);
+	const size_t size = port++ - base + 1;
+	char *host = new char[size]();
+	memcpy(host, base, size - 1);
 
-    m_host = host;
-    m_port = static_cast<uint16_t>(strtol(port, nullptr, 10));
+	m_host = host;
+	m_port = static_cast<uint16_t>(strtol(port, nullptr, 10));
 
-    return true;
+	return true;
 }
 
 
 bool Pool::setUserpass(const char *userpass)
 {
-    const char *p = strchr(userpass, ':');
-    if (!p) {
-        return false;
-    }
+	const char *p = strchr(userpass, ':');
+	if (!p) {
+		return false;
+	}
 
-    char *user = new char[p - userpass + 1]();
-    strncpy(user, userpass, p - userpass);
+	char *user = new char[p - userpass + 1]();
+	strncpy(user, userpass, p - userpass);
 
-    m_user     = user;
-    m_password = p + 1;
+	m_user = user;
+	m_password = p + 1;
 
-    return true;
+	return true;
 }
 
 
 rapidjson::Value Pool::toJSON(rapidjson::Document &doc) const
 {
-    using namespace rapidjson;
+	using namespace rapidjson;
 
-    auto &allocator = doc.GetAllocator();
+	auto &allocator = doc.GetAllocator();
 
-    Value obj(kObjectType);
+	Value obj(kObjectType);
 
-    obj.AddMember("url",    StringRef(url()), allocator);
-    obj.AddMember("user",   StringRef(user()), allocator);
-    obj.AddMember("pass",   StringRef(password()), allocator);
-    obj.AddMember("rig-id", rigId() ? Value(StringRef(rigId())).Move() : Value(kNullType).Move(), allocator);
+	obj.AddMember("url", StringRef(url()), allocator);
+	obj.AddMember("user", StringRef(user()), allocator);
+	obj.AddMember("pass", StringRef(password()), allocator);
+	obj.AddMember("rig-id", rigId() ? Value(StringRef(rigId())).Move() : Value(kNullType).Move(), allocator);
 
 #   ifndef XMRIG_PROXY_PROJECT
-    obj.AddMember("nicehash", isNicehash(), allocator);
+	obj.AddMember("nicehash", isNicehash(), allocator);
 #   endif
 
-    if (m_keepAlive == 0 || m_keepAlive == kKeepAliveTimeout) {
-        obj.AddMember("keepalive", m_keepAlive > 0, allocator);
-    }
-    else {
-        obj.AddMember("keepalive", m_keepAlive, allocator);
-    }
+	if (m_keepAlive == 0 || m_keepAlive == kKeepAliveTimeout) {
+		obj.AddMember("keepalive", m_keepAlive > 0, allocator);
+	}
+	else {
+		obj.AddMember("keepalive", m_keepAlive, allocator);
+	}
 
-    switch (m_algorithm.variant()) {
-    case xmrig::VARIANT_AUTO:
-    case xmrig::VARIANT_0:
-    case xmrig::VARIANT_1:
-    case xmrig::VARIANT_2:
-        obj.AddMember("variant", m_algorithm.variant(), allocator);
-        break;
+	switch (m_algorithm.variant()) {
+	case xmrig::VARIANT_AUTO:
+	case xmrig::VARIANT_0:
+	case xmrig::VARIANT_1:
+	case xmrig::VARIANT_2:
+		obj.AddMember("variant", m_algorithm.variant(), allocator);
+		break;
 
-    default:
-        obj.AddMember("variant", StringRef(m_algorithm.variantName()), allocator);
-        break;
-    }
+	default:
+		obj.AddMember("variant", StringRef(m_algorithm.variantName()), allocator);
+		break;
+	}
 
-    obj.AddMember("tls",             isTLS(), allocator);
-    obj.AddMember("tls-fingerprint", fingerprint() ? Value(StringRef(fingerprint())).Move() : Value(kNullType).Move(), allocator);
+	obj.AddMember("tls", isTLS(), allocator);
+	obj.AddMember("tls-fingerprint", fingerprint() ? Value(StringRef(fingerprint())).Move() : Value(kNullType).Move(), allocator);
 
-    return obj;
+	return obj;
 }
 
 
 void Pool::adjust(const xmrig::Algorithm &algorithm)
 {
-    if (!isValid()) {
-        return;
-    }
+	if (!isValid()) {
+		return;
+	}
 
-    if (!m_algorithm.isValid()) {
-        m_algorithm.setAlgo(algorithm.algo());
-        adjustVariant(algorithm.variant());
-    }
+	if (!m_algorithm.isValid()) {
+		m_algorithm.setAlgo(algorithm.algo());
+		adjustVariant(algorithm.variant());
+	}
 
-    rebuild();
+	rebuild();
 }
 
 
 void Pool::setAlgo(const xmrig::Algorithm &algorithm)
 {
-    m_algorithm = algorithm;
+	m_algorithm = algorithm;
 
-    rebuild();
+	rebuild();
 }
 
 
 #ifdef APP_DEBUG
 void Pool::print() const
 {
-    LOG_NOTICE("url:       %s", m_url.data());
-    LOG_DEBUG ("host:      %s", m_host.data());
-    LOG_DEBUG ("port:      %d", static_cast<int>(m_port));
-    LOG_DEBUG ("user:      %s", m_user.data());
-    LOG_DEBUG ("pass:      %s", m_password.data());
-    LOG_DEBUG ("rig-id     %s", m_rigId.data());
-    LOG_DEBUG ("algo:      %s", m_algorithm.name());
-    LOG_DEBUG ("nicehash:  %d", static_cast<int>(m_nicehash));
-    LOG_DEBUG ("keepAlive: %d", m_keepAlive);
+	LOG_NOTICE("url:       %s", m_url.data());
+	LOG_DEBUG("host:      %s", m_host.data());
+	LOG_DEBUG("port:      %d", static_cast<int>(m_port));
+	LOG_DEBUG("user:      %s", m_user.data());
+	LOG_DEBUG("pass:      %s", m_password.data());
+	LOG_DEBUG("rig-id     %s", m_rigId.data());
+	LOG_DEBUG("algo:      %s", m_algorithm.name());
+	LOG_DEBUG("nicehash:  %d", static_cast<int>(m_nicehash));
+	LOG_DEBUG("keepAlive: %d", m_keepAlive);
 }
 #endif
 
 
 bool Pool::parseIPv6(const char *addr)
 {
-    const char *end = strchr(addr, ']');
-    if (!end) {
-        return false;
-    }
+	const char *end = strchr(addr, ']');
+	if (!end) {
+		return false;
+	}
 
-    const char *port = strchr(end, ':');
-    if (!port) {
-        return false;
-    }
+	const char *port = strchr(end, ':');
+	if (!port) {
+		return false;
+	}
 
-    const size_t size = end - addr;
-    char *host        = new char[size]();
-    memcpy(host, addr + 1, size - 1);
+	const size_t size = end - addr;
+	char *host = new char[size]();
+	memcpy(host, addr + 1, size - 1);
 
-    m_host = host;
-    m_port = static_cast<uint16_t>(strtol(port + 1, nullptr, 10));
+	m_host = host;
+	m_port = static_cast<uint16_t>(strtol(port + 1, nullptr, 10));
 
-    return true;
+	return true;
 }
 
 
 void Pool::addVariant(xmrig::Variant variant)
 {
-    const xmrig::Algorithm algorithm(m_algorithm.algo(), variant);
-    if (!algorithm.isValid() || m_algorithm == algorithm) {
-        return;
-    }
+	const xmrig::Algorithm algorithm(m_algorithm.algo(), variant);
+	if (!algorithm.isValid() || m_algorithm == algorithm) {
+		return;
+	}
 
-    m_algorithms.push_back(algorithm);
+	m_algorithms.push_back(algorithm);
 }
 
 
 void Pool::adjustVariant(const xmrig::Variant variantHint)
 {
 #   ifndef XMRIG_PROXY_PROJECT
-    using namespace xmrig;
+	using namespace xmrig;
 
-    if (m_host.contains(".nicehash.com")) {
-        m_keepAlive = false;
-        m_nicehash  = true;
-        bool valid  = true;
+	if (m_host.contains(".nicehash.com")) {
+		m_keepAlive = false;
+		m_nicehash = true;
+		bool valid = true;
 
-        if (m_host.contains("cryptonight.") && m_port == 3355) {
-            valid = m_algorithm.algo() == CRYPTONIGHT;
-            m_algorithm.setVariant(VARIANT_0);
-        }
-        else if (m_host.contains("cryptonightv7.") && m_port == 3363) {
-            valid = m_algorithm.algo() == CRYPTONIGHT;
-            m_algorithm.setVariant(VARIANT_1);
-        }
-        else if (m_host.contains("cryptonightheavy.") && m_port == 3364) {
-            valid = m_algorithm.algo() == CRYPTONIGHT_HEAVY;
-            m_algorithm.setVariant(VARIANT_0);
-        }
+		if (m_host.contains("cryptonight.") && m_port == 3355) {
+			valid = m_algorithm.algo() == CRYPTONIGHT;
+			m_algorithm.setVariant(VARIANT_0);
+		}
+		else if (m_host.contains("cryptonightv7.") && m_port == 3363) {
+			valid = m_algorithm.algo() == CRYPTONIGHT;
+			m_algorithm.setVariant(VARIANT_1);
+		}
+		else if (m_host.contains("cryptonightheavy.") && m_port == 3364) {
+			valid = m_algorithm.algo() == CRYPTONIGHT_HEAVY;
+			m_algorithm.setVariant(VARIANT_0);
+		}
 
-        if (!valid) {
-            m_algorithm.setAlgo(INVALID_ALGO);
-        }
+		if (!valid) {
+			m_algorithm.setAlgo(INVALID_ALGO);
+		}
 
-        return;
-    }
+		return;
+	}
 
-    if (m_host.contains(".minergate.com")) {
-        m_keepAlive = false;
-        bool valid  = true;
-        m_algorithm.setVariant(VARIANT_1);
+	if (m_host.contains(".minergate.com")) {
+		m_keepAlive = false;
+		bool valid = true;
+		m_algorithm.setVariant(VARIANT_1);
 
-        if (m_host.contains("xmr.pool.")) {
-            valid = m_algorithm.algo() == CRYPTONIGHT;
-            m_algorithm.setVariant(m_port == 45700 ? VARIANT_2 : VARIANT_0);
-        }
-        else if (m_host.contains("aeon.pool.") && m_port == 45690) {
-            valid = m_algorithm.algo() == CRYPTONIGHT_LITE;
-            m_algorithm.setVariant(VARIANT_1);
-        }
+		if (m_host.contains("xmr.pool.")) {
+			valid = m_algorithm.algo() == CRYPTONIGHT;
+			m_algorithm.setVariant(m_port == 45700 ? VARIANT_2 : VARIANT_0);
+		}
+		else if (m_host.contains("aeon.pool.") && m_port == 45690) {
+			valid = m_algorithm.algo() == CRYPTONIGHT_LITE;
+			m_algorithm.setVariant(VARIANT_1);
+		}
 
-        if (!valid) {
-            m_algorithm.setAlgo(INVALID_ALGO);
-        }
+		if (!valid) {
+			m_algorithm.setAlgo(INVALID_ALGO);
+		}
 
-        return;
-    }
+		return;
+	}
 
-    if (variantHint != VARIANT_AUTO) {
-        m_algorithm.setVariant(variantHint);
-        return;
-    }
+	if (variantHint != VARIANT_AUTO) {
+		m_algorithm.setVariant(variantHint);
+		return;
+	}
 
-    if (m_algorithm.variant() != VARIANT_AUTO) {
-        return;
-    }
+	if (m_algorithm.variant() != VARIANT_AUTO) {
+		return;
+	}
 
-    if (m_algorithm.algo() == CRYPTONIGHT_HEAVY)  {
-        m_algorithm.setVariant(VARIANT_0);
-    }
-    else if (m_algorithm.algo() == CRYPTONIGHT_LITE) {
-        m_algorithm.setVariant(VARIANT_1);
-    }
+	if (m_algorithm.algo() == CRYPTONIGHT_HEAVY) {
+		m_algorithm.setVariant(VARIANT_0);
+	}
+	else if (m_algorithm.algo() == CRYPTONIGHT_LITE) {
+		m_algorithm.setVariant(VARIANT_1);
+	}
 #   endif
 }
 
 
 void Pool::rebuild()
 {
-    m_algorithms.clear();
+	m_algorithms.clear();
 
-    if (!m_algorithm.isValid()) {
-        return;
-    }
+	if (!m_algorithm.isValid()) {
+		return;
+	}
 
-    m_algorithms.push_back(m_algorithm);
+	m_algorithms.push_back(m_algorithm);
 
 #   ifndef XMRIG_PROXY_PROJECT
-    addVariant(xmrig::VARIANT_2);
-    addVariant(xmrig::VARIANT_1);
-    addVariant(xmrig::VARIANT_0);
-    addVariant(xmrig::VARIANT_XTL);
-    addVariant(xmrig::VARIANT_TUBE);
-    addVariant(xmrig::VARIANT_MSR);
-    addVariant(xmrig::VARIANT_XHV);
-    addVariant(xmrig::VARIANT_XAO);
-    addVariant(xmrig::VARIANT_RTO);
-    addVariant(xmrig::VARIANT_AUTO);
+	addVariant(xmrig::VARIANT_2);
+	addVariant(xmrig::VARIANT_1);
+	addVariant(xmrig::VARIANT_0);
+	addVariant(xmrig::VARIANT_XTL);
+	addVariant(xmrig::VARIANT_TUBE);
+	addVariant(xmrig::VARIANT_MSR);
+	addVariant(xmrig::VARIANT_XHV);
+	addVariant(xmrig::VARIANT_XAO);
+	addVariant(xmrig::VARIANT_RTO);
+	addVariant(xmrig::VARIANT_AUTO);
 #   endif
 }
