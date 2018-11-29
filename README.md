@@ -1,10 +1,14 @@
-# CN8CardSaver AMD
+# cn8cardsaver AMD
 
-CN8CardSaver-amd is a high performance Monero (XMR) OpenCL AMD miner forked from XMRig-amd.
+CN8CardSaver-amd is a high performance Monero (XMR) OpenCL AMD miner forked from [XMRig-amd](https://github.com/xmrig/xmrig-amd).
 
 cn8cardsaver (CryptoNight V1/2) is a miner for Monero XMR with GPU temperature control support. With it you can keep your expensive cards save.
 Keep it below 65 C to be on the safe side. If it gets to 80 C or above you are damaging your card.
-Use the switches ```--max-gpu-temp=65 and --gpu-temp-falloff=9```
+Use the switches ```--max-gpu-temp=65 and --gpu-temp-falloff=9``` for example.
+
+###### New feature:
+The linux version can now control the fans automatically. If the temperature gets too high the fans are turned to 100% and back to auto if the temperature gets back down.
+You have to use the amdgpu-pro driver.
 
 GPU mining part based on [psychocrypt](https://github.com/psychocrypt) code used in xmr-stak-nvidia.
 
@@ -99,7 +103,21 @@ Use [config.xmrig.com](https://config.xmrig.com/amd) to generate, edit or share 
 Default donation 5% (5 minutes in 100 minutes) can be reduced to 1% via option `donate-level`.
 
 * XMR: `422KmQPiuCE7GdaAuvGxyYScin46HgBWMQo4qcRpcY88855aeJrNYWd3ZqE4BKwjhA2BJwQY7T2p6CUmvwvabs8vQqZAzLN`
-* BTC: `17WoADQ3bEPZvhMtMrfRvGCcqamYJ6DKju`
+* BTC: `19hNKKFu34CniRWPhGqAB76vi3U4x7DZyZ`
+
+#### Donate to xmrig dev
+* XMR: `48edfHu7V9Z84YzzMa6fUueoELZ9ZRXq9VetWzYGzKt52XU5xvqgzYnDK9URnRoJMk1j8nLwEVsaSWJ4fhdUyZijBGUicoD`
+* BTC: `1P7ujsXeX7GxQwHNnJsRMgAdNkFZmNVqJT`
+
+
+## Release checksums (invalid, TBD)
+### SHA-256
+```
+f83ba339f7316cb5a31ae3311abe8291ba3b578fae959e7c0639c1076c58c57b xmrig-amd-2.8.3-xenial-amd64.tar.gz/xmrig-amd-2.8.3/xmrig-amd
+12694a7a1e323ee5303e6eb3c3bbf2993e6469016c13cd75f9a1b876e36173b2 xmrig-amd-2.8.3-xenial-amd64.tar.gz/xmrig-amd-2.8.3/xmrig-amd-notls
+0f727ef07bef89e107966d004e4e57b41d473b29c085da9182aed2333a64a4f7 xmrig-amd-2.8.3-win64.zip/xmrig-amd.exe
+f5cff1cbad8ab43ea3506c54d6bb4e89b99540933dbd0b40282d9e76f8c9048a xmrig-amd-2.8.3-win64.zip/xmrig-amd-notls.exe
+```
 
 ```
 
