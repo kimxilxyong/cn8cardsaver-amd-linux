@@ -119,8 +119,6 @@ f83ba339f7316cb5a31ae3311abe8291ba3b578fae959e7c0639c1076c58c57b xmrig-amd-2.8.3
 f5cff1cbad8ab43ea3506c54d6bb4e89b99540933dbd0b40282d9e76f8c9048a xmrig-amd-2.8.3-win64.zip/xmrig-amd-notls.exe
 ```
 
-```
-
 ## Contacts
 * kimxilxyong@gmail.com
 * [reddit](https://www.reddit.com/user/kimilyong/)
