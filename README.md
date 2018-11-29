@@ -6,14 +6,14 @@ cn8cardsaver (CryptoNight V1/2) is a miner for Monero XMR with GPU temperature c
 Keep it below 65 C to be on the safe side. If it gets to 80 C or above you are damaging your card.
 Use the switches ```--max-gpu-temp=65 and --gpu-temp-falloff=9``` for example.
 
-###### New feature:
+##### New feature:
 The linux version can now control the fans automatically. If the temperature gets too high the fans are turned to 100% and back to auto if the temperature gets back down.
 You have to use the amdgpu-pro driver.
 
 GPU mining part based on [psychocrypt](https://github.com/psychocrypt) code used in xmr-stak-nvidia.
 
-Temperature control:
-### Command line options
+### Temperature control:
+#### Command line options
 ```
       --max-gpu-temp=N      Maximum temperature a GPU may reach before its cooled down (default 75)
       --gpu-temp-falloff=N  Amount of temperature to cool off before mining starts again (default 10)
