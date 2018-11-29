@@ -46,8 +46,8 @@ class OclCLI
 {
 public:
 	OclCLI();
-
-	bool setup(std::vector<xmrig::IThread *> &threads);
+	
+	bool setup(std::vector<xmrig::IThread *> &threads, GpuContext *context);
 	void autoConf(std::vector<xmrig::IThread *> &threads, xmrig::Config *config);
 	void parseLaunch(const char *arg);
 
@@ -58,6 +58,8 @@ public:
 	inline void parseStridedIndex(const char *arg) { parse(m_stridedIndex, arg); }
 	inline void parseUnrollFactor(const char *arg) { parse(m_unrollFactor, arg); }
 
+	static int getPCIInfo(GpuContext *context, int DeviceId);
+	
 private:
 	enum Hints {
 		None = 0,

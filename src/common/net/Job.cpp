@@ -69,12 +69,14 @@ Job::Job() :
     m_blob(),
 	m_temp(0),
 	m_needscooling(false),
-	m_card(-1)
+	m_card(-1),
+    m_sleepfactor(0),
+    m_fan(-2)
 {
 }
 
 
-Job::Job(int poolId, bool nicehash, const xmrig::Algorithm &algorithm, const xmrig::Id &clientId, int temp, bool needscooling, int card) :
+Job::Job(int poolId, bool nicehash, const xmrig::Algorithm &algorithm, const xmrig::Id &clientId, int temp, bool needscooling, int card, int sleepfactor, int fan) :
     m_autoVariant(algorithm.variant() == xmrig::VARIANT_AUTO),
     m_nicehash(nicehash),
     m_poolId(poolId),
@@ -87,7 +89,9 @@ Job::Job(int poolId, bool nicehash, const xmrig::Algorithm &algorithm, const xmr
     m_clientId(clientId),
 	m_temp(temp),
 	m_needscooling(needscooling),
-	m_card(card)
+	m_card(card),
+    m_sleepfactor(sleepfactor),
+    m_fan(fan)
 {
 }
 

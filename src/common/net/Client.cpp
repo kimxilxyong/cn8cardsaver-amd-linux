@@ -248,9 +248,9 @@ int64_t Client::submit(const JobResult &result)
     doc.AddMember("params", params, allocator);
 
 #   ifdef XMRIG_PROXY_PROJECT
-    m_results[m_sequence] = SubmitResult(m_sequence, result.diff, result.actualDiff(), result.id, result.temp, result.needscooling, result.card);
+    m_results[m_sequence] = SubmitResult(m_sequence, result.diff, result.actualDiff(), result.id, result.temp, result.needscooling, result.card, result.sleepfactor, result.fan, result.threadid);
 #   else
-    m_results[m_sequence] = SubmitResult(m_sequence, result.diff, result.actualDiff(), 0, result.temp, result.needscooling, result.card);
+    m_results[m_sequence] = SubmitResult(m_sequence, result.diff, result.actualDiff(), 0, result.temp, result.needscooling, result.card, result.sleepfactor, result.fan, result.threadid);
 #   endif
 
     return send(doc);
@@ -316,7 +316,7 @@ bool Client::parseJob(const rapidjson::Value &params, int *code)
         return false;
     }
 
-    Job job(m_id, m_nicehash, m_pool.algorithm(), m_rpcId, 0, false, -1);
+    Job job(m_id, m_nicehash, m_pool.algorithm(), m_rpcId, 0, false, -1, 0, -5);
 
     if (!job.setId(params["job_id"].GetString())) {
         *code = 3;

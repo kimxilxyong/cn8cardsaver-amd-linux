@@ -24,7 +24,7 @@
 
 #include <stdlib.h>
 #include <uv.h>
-
+#include <signal.h>
 
 #include "api/Api.h"
 #include "App.h"
@@ -38,7 +38,6 @@
 #include "Summary.h"
 #include "version.h"
 #include "workers/Workers.h"
-#include "uv/uv-common.h"
 
 
 #ifndef XMRIG_NO_HTTPD
@@ -75,6 +74,8 @@ App::App(int argc, char **argv) :
 
 App::~App()
 {
+    Platform::restoreTimerResolution();
+
     uv_tty_reset_mode();
 
     delete m_console;
@@ -83,19 +84,23 @@ App::~App()
 #   ifndef XMRIG_NO_HTTPD
     delete m_httpd;
 #   endif
+    uv_tty_reset_mode();
 }
 
 
 int App::exec()
 {
+    if (m_controller->isDone()) {
+        return 0;
+    }
     if (!m_controller->isReady()) {
         return 2;
     }
-	
+
     uv_signal_start(&m_sigHUP,  App::onSignal, SIGHUP);
     uv_signal_start(&m_sigINT,  App::onSignal, SIGINT);
     uv_signal_start(&m_sigTERM, App::onSignal, SIGTERM);
-	
+
     background();
 
     if (!CryptoNight::init(m_controller->config()->algorithm().algo())) {
@@ -128,7 +133,9 @@ int App::exec()
 	Workers::setMaxtemp(m_controller->config()->maxtemp());
 	Workers::setFalloff(m_controller->config()->falloff());
 
-
+    if (Platform::setTimerResolution(1) == 0) {
+        LOG_WARN("Failed to set system timer resolution.");
+    }
 
     if (!m_controller->oclInit() || !Workers::start(m_controller)) {
         LOG_ERR("Failed to start threads.");
@@ -140,6 +147,15 @@ int App::exec()
 	int r;
 	int lc = 0;
 	r = uv_run(uv_default_loop(), UV_RUN_DEFAULT);
+
+    uv_tty_t m_tty;
+    if (uv_tty_init(uv_default_loop(), &m_tty, 1, 0) < 0) {
+        m_controller->config()->setColors(false);        
+    }
+
+    uv_tty_set_mode(&m_tty, UV_TTY_MODE_NORMAL);
+
+
 	lc = uv_loop_close(uv_default_loop());
 	if (lc == UV_EBUSY) {
 		uv_walk(uv_default_loop(), App::on_uv_walk, NULL);
@@ -157,7 +173,7 @@ int App::exec()
 
 void App::on_uv_walk(uv_handle_t* handle, void* arg)
 {
-	if (!(handle->flags & UV_HANDLE_CLOSING)) {
+	if (!uv_is_closing(handle)) {
 		uv_close(handle, App::on_uv_close);
 	}
 }
@@ -166,7 +182,7 @@ void App::on_uv_close(uv_handle_t* handle)
 {
 	if (handle != NULL)
 	{
-		if (!(handle->flags & UV_HANDLE_CLOSED)) {
+		if (!uv_is_closing(handle)) {
 
 			/*uv_signal_t* signal = (uv_signal_t*)handle;
 			int sig = signal->signum;
@@ -206,8 +222,8 @@ void App::onConsoleCommand(char command)
         break;
 
     case 3:
-        LOG_WARN("Ctrl+C received, exiting");
-        close();
+        LOG_WARN("Ctrl+C received, exiting");        
+        close();        
         break;
 
     default:

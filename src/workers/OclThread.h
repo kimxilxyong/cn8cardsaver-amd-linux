@@ -52,6 +52,10 @@ public:
     inline void setIndex(size_t index)         { m_index = index; }
     inline void setIntensity(size_t intensity) { m_intensity = intensity; }
     inline void setWorksize(size_t worksize)   { m_worksize = worksize; }
+    
+    inline uint32_t pciBusID() const      { return m_pciBusID; }
+    inline uint32_t pciDeviceID() const   { return m_pciDeviceID; }
+    inline uint32_t pciDomainID() const   { return m_pciDomainID; }
 
     inline xmrig::Algo algorithm() const override { return m_algorithm; }
     inline int priority() const override          { return -1; }
@@ -86,6 +90,9 @@ private:
     size_t m_index;
     size_t m_intensity;
     size_t m_worksize;
+    uint32_t m_pciBusID;
+    uint32_t m_pciDeviceID;
+    uint32_t m_pciDomainID;
     xmrig::Algo m_algorithm;
 	GpuContext *m_ctx;
 };

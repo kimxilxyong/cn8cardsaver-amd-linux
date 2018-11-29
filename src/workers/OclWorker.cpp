@@ -41,9 +41,9 @@
 #include "workers/OclWorker.h"
 #include "workers/Workers.h"
 #include "common/log/Log.h"
-#include "3rdparty\ADL\adl_sdk.h"
-#include "3rdparty\ADL\adl_defines.h"
-#include "3rdparty\ADL\adl_structures.h"
+#include "3rdparty/ADL/adl_sdk.h"
+#include "3rdparty/ADL/adl_defines.h"
+#include "3rdparty/ADL/adl_structures.h"
 
 
 
@@ -68,13 +68,26 @@ OclWorker::OclWorker(Handle *handle) :
 
 void OclWorker::start()
 {
+	char offset[2000];
+	int iReduceMining = 0;
+	int iSleepFactor = 1000;
+	int LastTemp = 0;
+	int temp;
+	int NeedCooling = 0;
+    int AdlOk;
 	cl_uint results[0x100];
 	ADL_CONTEXT_HANDLE context;
 	CoolingContext cool;
 
+    cool.pciBus = m_ctx->device_pciBusID;
+    cool.Card = m_ctx->deviceIdx;
+
 	Workers::addWorkercount();
 
-	AdlUtils::InitADL(&context);
+	AdlOk = AdlUtils::InitADL(&context, &cool);
+    if (AdlOk != ADL_OK) {
+        LOG_WARN("Cooling is disabled for thread %i!", id());
+    }
 	
     while (Workers::sequence() > 0) {
         if (Workers::isPaused()) {
@@ -89,29 +102,32 @@ void OclWorker::start()
 
             consumeJob();
         }
-		
-		AdlUtils::DoCooling(context, m_ctx->deviceIdx, &cool);
+		int LastTemp;
+		if (AdlOk == ADL_OK)
+            AdlUtils::DoCooling(context, m_ctx->DeviceID, m_ctx->deviceIdx, m_id, &cool);
 		
         while (!Workers::isOutdated(m_sequence)) {
 
-			LOG_DEBUG("**Card %u Temperature %i  iSleepFactor %i LastTemp %i NeedCooling %i ", m_ctx->deviceIdx, cool.Temp, cool.SleepFactor, cool.LastTemp, cool.NeedsCooling);
-			AdlUtils::DoCooling(context, m_ctx->deviceIdx, &cool);
-			
+			//LOG_INFO("**Card %u Temperature %i iReduceMining %i iSleepFactor %i LastTemp %i NeedCooling %i ", m_ctx->deviceIdx, temp, iReduceMining, iSleepFactor, LastTemp, NeedCooling);
+            if (AdlOk == ADL_OK)
+			    AdlUtils::DoCooling(context, m_ctx->DeviceID, m_ctx->deviceIdx, m_id, &cool);
+
             memset(results, 0, sizeof(cl_uint) * (0x100));
 
             XMRRunJob(m_ctx, results, m_job.algorithm().variant());
 
             for (size_t i = 0; i < results[0xFF]; i++) {
                 *m_job.nonce() = results[i];
-				m_job.setTemp(cool.Temp);
+				m_job.setTemp(cool.CurrentTemp);
+                m_job.setFan(cool.CurrentFan);
 				m_job.setNeedscooling(cool.NeedsCooling);
-				m_job.setSleepFactor(cool.SleepFactor);
+                m_job.setSleepfactor(cool.SleepFactor);
 				m_job.setCard(m_ctx->deviceIdx);
+                m_job.setThreadId(m_id);
                 Workers::submit(m_job);
             }
 
             m_count += m_ctx->rawIntensity;
-			
 
             storeStats();
             std::this_thread::yield();
@@ -119,7 +135,9 @@ void OclWorker::start()
 
         consumeJob();
     }
-	AdlUtils::ReleaseADL(context);
+    if (AdlOk == ADL_OK)
+	    AdlUtils::ReleaseADL(context, &cool);
+
 	Workers::removeWorkercount();
 }
 

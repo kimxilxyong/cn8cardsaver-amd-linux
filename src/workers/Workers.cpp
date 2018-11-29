@@ -48,7 +48,8 @@
 #include "3rdparty/ADL/adl_sdk.h"
 #include "3rdparty/ADL/adl_defines.h"
 #include "3rdparty/ADL/adl_structures.h"
-#include "uv/uv-common.h"
+#include "Summary.h"
+
 
 
 
@@ -115,7 +116,6 @@ Job Workers::job()
     return job;
 }
 
-
 size_t Workers::hugePages()
 {
     return 0;
@@ -139,26 +139,37 @@ void Workers::printHashrate(bool detail)
         char num2[8] = { 0 };
         char num3[8] = { 0 };
 
-        Log::i()->text("%s| THREAD | GPU | TEMP | 10s H/s | 60s H/s | 15m H/s |", isColors ? "\x1B[1;37m" : "");
-		
-		ADL_CONTEXT_HANDLE context;
-		AdlUtils::InitADL(&context);
+        Log::i()->text("%s| THREAD | GPU |     PCI    | TEMP | 10s H/s | 60s H/s | 15m H/s | FAN |", isColors ? "\x1B[1;37m" : "");
 
+        ADL_CONTEXT_HANDLE context;
+        CoolingContext cool;
+                    
         size_t i = 0;
-		size_t lt = 0;
         for (const xmrig::IThread *thread : m_controller->config()->threads()) {
-			if (lt != thread->index()) {lt = thread->index(); }
-			Log::i()->text("| %6zu | %3zu | %4u | %7s | %7s | %7s |",
-                            i, thread->index(),
-							AdlUtils::Temperature(context, lt),
-                            Hashrate::format(m_hashrate->calc(i, Hashrate::ShortInterval), num1, sizeof num1),
-                            Hashrate::format(m_hashrate->calc(i, Hashrate::MediumInterval), num2, sizeof num2),
-                            Hashrate::format(m_hashrate->calc(i, Hashrate::LargeInterval), num3, sizeof num3)
-                            );
 
-             i++;
+            cool.pciBus = thread->ctx()->device_pciBusID;
+            cool.Card = thread->index();
+            if (AdlUtils::InitADL(&context, &cool) == ADL_OK) {
+                AdlUtils::Temperature(context, thread->ctx()->DeviceID, i, &cool);
+                Log::i()->text("| %6zu | %3zu | " YELLOW("%04x:%02x:%02x") " | %3u  | %7s | %7s | %7s |%3i% |",
+                                i, thread->index(),
+                                thread->ctx()->device_pciDomainID,
+                                thread->ctx()->device_pciBusID,
+                                thread->ctx()->device_pciDeviceID,
+                                cool.CurrentTemp,
+                                Hashrate::format(m_hashrate->calc(i, Hashrate::ShortInterval), num1, sizeof num1),
+                                Hashrate::format(m_hashrate->calc(i, Hashrate::MediumInterval), num2, sizeof num2),
+                                Hashrate::format(m_hashrate->calc(i, Hashrate::LargeInterval), num3, sizeof num3),
+                                cool.CurrentFan
+                                );
+
+                i++;
+                AdlUtils::ReleaseADL(context, &cool);
+            }
+            else {
+                LOG_ERR("Failed to init ADL library");
+            }
         }
-		AdlUtils::ReleaseADL(context);
     }
 
     m_hashrate->print();
@@ -274,6 +285,12 @@ bool Workers::start(xmrig::Controller *controller)
 	for (xmrig::IThread *thread : threads) {
 		Handle *handle = new Handle(i, thread, &contexts[i], offset, ways);
 		offset += thread->multiway();
+
+		int CardID = thread->index();
+		if (OclCLI::getPCIInfo(&contexts[i], CardID) != CL_SUCCESS) {
+			LOG_ERR("Cannot get PCI information for Card %i", CardID);
+		}
+
 		thread->setCtx(&contexts[i]);
 
 		i++;
@@ -292,22 +309,23 @@ bool Workers::start(xmrig::Controller *controller)
 
 void Workers::stop()
 {
-    uv_timer_stop(&m_timer);
-    m_hashrate->stop();
+	uv_timer_stop(&m_timer);
+	m_hashrate->stop();
 
-    m_paused   = 0;
-    m_sequence = 0;
+	m_paused = 0;
+	m_sequence = 0;
 
-    for (size_t i = 0; i < m_workers.size(); ++i) {
-        m_workers[i]->join();
+	for (size_t i = 0; i < m_workers.size(); ++i) {
+		m_workers[i]->join();
 		ReleaseOpenCl(m_workers[i]->ctx());
-    }
+	}
 	int i = 0;
-	while ((Workers::getWorkercount() > 0) && (i < 100)) {		
+	while ((Workers::getWorkercount() > 0) && (i < 100)) {
 		std::this_thread::sleep_for(std::chrono::milliseconds(200));
 		i++;
 	}
-	if (!(m_async.flags & UV_HANDLE_CLOSING) && !(m_async.flags & UV_HANDLE_CLOSED)) {
+    if (!uv_is_closing(reinterpret_cast<uv_handle_t*>(&m_async))) {
+	//if (!(m_async.flags & UV_HANDLE_CLOSING) && !(m_async.flags & UV_HANDLE_CLOSED)) {
 		uv_close(reinterpret_cast<uv_handle_t*>(&m_async), nullptr);
 	}
 	ReleaseOpenClContext(m_opencl_ctx);
@@ -406,6 +424,7 @@ void Workers::onResult(uv_async_t *handle)
     );
 }
 
+
 void Workers::onTick(uv_timer_t *handle)
 {
     for (Handle *handle : m_workers) {
@@ -420,6 +439,7 @@ void Workers::onTick(uv_timer_t *handle)
         m_hashrate->updateHighest();
     }
 }
+
 
 void Workers::start(IWorker *worker)
 {

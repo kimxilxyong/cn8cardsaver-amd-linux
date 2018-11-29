@@ -42,9 +42,11 @@
 #include "rapidjson/fwd.h"
 
  // Memory allocation function
-void* __stdcall ADL_Main_Memory_Alloc(int iSize);
+//void* __stdcall ADL_Main_Memory_Alloc(int iSize);
 // Optional Memory de-allocation function
-void __stdcall ADL_Main_Memory_Free(void* lpBuffer);
+//void __stdcall ADL_Main_Memory_Free(void* lpBuffer);
+
+
 class Handle;
 class Hashrate;
 class IJobResultListener;

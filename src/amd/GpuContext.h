@@ -60,7 +60,10 @@ struct GpuContext
         Kernels{ nullptr },
         freeMem(0),
         computeUnits(0),
-        Nonce(0)
+        Nonce(0),
+        device_pciBusID(0),
+        device_pciDeviceID(0),
+        device_pciDomainID(0)
     {}
 
 
@@ -82,7 +85,10 @@ struct GpuContext
         Kernels{ nullptr },
         freeMem(0),
         computeUnits(0),
-        Nonce(0)
+        Nonce(0),
+        device_pciBusID(0),
+        device_pciDeviceID(0),
+        device_pciDomainID(0)
     {}
 
     /*Input vars*/
@@ -106,6 +112,11 @@ struct GpuContext
     size_t freeMem;
     int computeUnits;
     std::string name;
+
+    /* PCI-E values*/
+    uint32_t device_pciBusID;
+    uint32_t device_pciDeviceID;
+    uint32_t device_pciDomainID;
 
     uint32_t Nonce;
 };

@@ -35,8 +35,8 @@
 class JobResult
 {
 public:
-    inline JobResult() : poolId(0), diff(0), nonce(0), temp(0), needscooling(false), card(-1) {}
-    inline JobResult(int poolId, const xmrig::Id &jobId, uint32_t nonce, const uint8_t *result, uint32_t diff, const xmrig::Algorithm &algorithm, int temp, bool needscooling, int card) :
+    inline JobResult() : poolId(0), diff(0), nonce(0), temp(0), needscooling(false), card(-1), sleepfactor(0), fan(-4), threadid(0) {}
+    inline JobResult(int poolId, const xmrig::Id &jobId, uint32_t nonce, const uint8_t *result, uint32_t diff, const xmrig::Algorithm &algorithm, int temp, bool needscooling, int card, int sleepfactor, int fan, int threadid) :
         poolId(poolId),
         diff(diff),
         nonce(nonce),
@@ -44,7 +44,10 @@ public:
         jobId(jobId),
 		temp(temp),
 		needscooling(needscooling),
-		card(card)
+		card(card),
+        sleepfactor(sleepfactor),
+        fan(fan),
+        threadid(threadid)
     {
         memcpy(this->result, result, sizeof(this->result));
     }
@@ -52,14 +55,17 @@ public:
 
     inline JobResult(const Job &job) : poolId(0), diff(0), nonce(0)
     {
-        jobId     = job.id();
-        poolId    = job.poolId();
-        diff      = job.diff();
-        nonce     = *job.nonce();
-        algorithm = job.algorithm();
-		temp      = job.temp();
+        jobId        = job.id();
+        poolId       = job.poolId();
+        diff         = job.diff();
+        nonce        = *job.nonce();
+        algorithm    = job.algorithm();
+		temp         = job.temp();
 		needscooling = job.needscooling();
-		card      = job.card();
+		card         = job.card();
+        sleepfactor  = job.sleepfactor(),
+        fan          = job.fan();
+        threadid     = job.threadId();
     }
 
 
@@ -78,6 +84,9 @@ public:
 	int temp;
 	bool needscooling;
 	int card;
+    int sleepfactor;
+    int fan;
+    int threadid;
 };
 
 #endif /* __JOBRESULT_H__ */

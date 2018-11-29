@@ -18,9 +18,9 @@
 
 #include "adl_structures.h"
 
-#if defined (LINUX)
+//#if defined (LINUX)
 #define __stdcall
-#endif /* (LINUX) */
+//#endif /* (LINUX) */
 
 /// Memory Allocation Call back 
 typedef void* ( __stdcall *ADL_MAIN_MALLOC_CALLBACK )( int );

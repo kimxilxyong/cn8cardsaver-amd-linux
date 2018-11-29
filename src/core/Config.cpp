@@ -102,7 +102,7 @@ bool xmrig::Config::oclInit()
 		return false;
 	}
 
-	if (m_threads.empty() && !m_oclCLI.setup(m_threads)) {
+	if (m_threads.empty() && !m_oclCLI.setup(m_threads, nullptr)) {
 		m_autoConf = true;
 		m_shouldSave = true;
 		m_oclCLI.autoConf(m_threads, this);

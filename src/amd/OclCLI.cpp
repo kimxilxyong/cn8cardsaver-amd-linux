@@ -28,10 +28,13 @@
 #include <stdio.h>
 #include <algorithm>
 
+#include <CL/cl_ext.h>
+
 
 #include "amd/cryptonight.h"
 #include "amd/OclCLI.h"
 #include "amd/OclGPU.h"
+#include "amd/OclLib.h"
 #include "common/log/Log.h"
 #include "core/Config.h"
 #include "crypto/CryptoNight_constants.h"
@@ -42,8 +45,29 @@ OclCLI::OclCLI()
 {
 }
 
+int OclCLI::getPCIInfo(GpuContext *context, int DeviceId)
+{
+	cl_device_topology_amd topology;
 
-bool OclCLI::setup(std::vector<xmrig::IThread *> &threads)
+	cl_int status = OclLib::getDeviceInfo(context->DeviceID, CL_DEVICE_TOPOLOGY_AMD,
+		sizeof(cl_device_topology_amd), &topology, NULL);
+
+	if (status != CL_SUCCESS) {
+		// Handle error
+		LOG_ERR("Failed to get clGetDeviceInfo %u", status);
+	}
+
+	if (topology.raw.type == CL_DEVICE_TOPOLOGY_TYPE_PCIE_AMD) {
+		LOG_DEBUG("****************** m_ctx->deviceIdx %u INFO: Topology: PCI[ B#%u D#%u F#%u ]", deviceIdx, (int)topology.pcie.bus, (int)topology.pcie.device, (int)topology.pcie.function);
+		context->device_pciBusID = (int)topology.pcie.bus;
+		context->device_pciDeviceID = (int)topology.pcie.device;
+		context->device_pciDomainID = (int)topology.pcie.function;
+
+	}
+	return status;
+}
+
+bool OclCLI::setup(std::vector<xmrig::IThread *> &threads, GpuContext *context)
 {
 	if (isEmpty()) {
 		return false;
@@ -56,6 +80,15 @@ bool OclCLI::setup(std::vector<xmrig::IThread *> &threads)
 		thread->setUnrollFactor(unrollFactor(i));
 		thread->setCompMode(compMode(i) == 0 ? false : true);
 
+		if (context == nullptr) {
+			context = new GpuContext(m_devices[i], intensity(i), worksize(i), stridedIndex(i), memChunk(i), compMode(i) == 0 ? false : true, unrollFactor(i));
+		}
+		int CardID = m_devices[i];
+		if (getPCIInfo(context, CardID) != CL_SUCCESS) {
+			LOG_ERR("Cannot get PCI information for Card %i", CardID);
+		}
+		thread->setCtx(context);
+		
 		threads.push_back(thread);
 	}
 
@@ -191,8 +224,16 @@ OclThread *OclCLI::createThread(const GpuContext &ctx, size_t intensity, int hin
 		stridedIndex = 2;
 	}
 
+	GpuContext *context = new GpuContext(ctx.deviceIdx, intensity, worksize, stridedIndex, ctx.memChunk, ctx.compMode == 0 ? false : true, ctx.unrollFactor);
+
+	int CardID = ctx.deviceIdx;
+	if (getPCIInfo(context, CardID) != CL_SUCCESS) {
+		LOG_ERR("Cannot get PCI information for Card %i", CardID);
+	}
+
 	OclThread *thread = new OclThread(ctx.deviceIdx, intensity, worksize);
 	thread->setStridedIndex(stridedIndex);
+	thread->setCtx(context);
 
 	return thread;
 }

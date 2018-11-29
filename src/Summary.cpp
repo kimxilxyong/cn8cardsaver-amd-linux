@@ -41,6 +41,8 @@
 #include "core/Controller.h"
 #include "Summary.h"
 #include "version.h"
+#include "interfaces/IThread.h"
+#include "workers/OclThread.h"
 
 
 static void print_cpu(xmrig::Config *config)
@@ -92,10 +94,25 @@ static void print_maxtemp(xmrig::Config *config)
 	}
 }
 
+static void print_gpu(xmrig::Config *config)
+{
+    for (const xmrig::IThread *t : config->threads()) {
+        auto thread = static_cast<const OclThread *>(t);
+        Log::i()->text(config->isColors() ? GREEN_BOLD(" * ") WHITE_BOLD("GPU #%-8zu") YELLOW("PCI:%04x:%02x:%02x")
+                                          : " * GPU #%-8zuPCI:%04x:%02x:%02x",
+                       thread->index(),
+                       thread->pciDomainID(),
+                       thread->pciBusID(),
+                       thread->pciDeviceID()
+        );
+    }
+}
+
 void Summary::print(xmrig::Controller *controller)
 {
     controller->config()->printVersions();
     print_cpu(controller->config());
+    //print_gpu(controller->config());
     print_algo(controller->config());
     controller->config()->printPools();
     controller->config()->printAPI();

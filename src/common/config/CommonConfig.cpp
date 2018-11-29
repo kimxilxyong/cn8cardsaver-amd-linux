@@ -267,6 +267,7 @@ bool xmrig::CommonConfig::finalize()
 
 	m_state = ReadyState;
 	return true;
+
 }
 
 

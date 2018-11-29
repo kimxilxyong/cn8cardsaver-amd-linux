@@ -131,9 +131,18 @@ size_t InitOpenCLGpu(int index, cl_context opencl_ctx, GpuContext* ctx, const ch
 	getDeviceName(ctx->DeviceID, buf, sizeof(buf));
 	ctx->computeUnits = getDeviceMaxComputeUnits(ctx->DeviceID);
 
-	LOG_INFO(config->isColors() ? WHITE_BOLD("#%d") ", GPU " WHITE_BOLD("#%zu") " " GREEN_BOLD("%s") ", intensity: " WHITE_BOLD("%zu") " (%zu/%zu), unroll: " WHITE_BOLD("%d") ", cu: " WHITE_BOLD("%d")
-		: "#%d, GPU #%zu (%s), intensity: %zu (%zu/%zu), unroll: %d, cu: %d",
-		index, ctx->deviceIdx, buf, ctx->rawIntensity, ctx->workSize, MaximumWorkSize, ctx->unrollFactor, ctx->computeUnits);
+	int CardID = ctx->deviceIdx;
+	if (OclCLI::getPCIInfo(ctx, CardID) != CL_SUCCESS) {
+		LOG_ERR("Cannot get PCI information for Card %i", CardID);
+	}
+
+	LOG_INFO(config->isColors() ? WHITE_BOLD("#%d") ", GPU " WHITE_BOLD("#%zu") " " GREEN_BOLD("%s") YELLOW(" PCI:%04x:%02x:%02x") ", intensity: " WHITE_BOLD("%zu") " (%zu/%zu), unroll: " WHITE_BOLD("%d") ", cu: " WHITE_BOLD("%d")
+		: "#%d, GPU #%zu (%s) PCI:%04x:%02x:%02x, intensity: %zu `(%zu/%zu), unroll: %d, cu: %d",
+		index, ctx->deviceIdx, buf, 
+		ctx->device_pciDomainID,
+		ctx->device_pciBusID,
+		ctx->device_pciDeviceID,
+		ctx->rawIntensity, ctx->workSize, MaximumWorkSize, ctx->unrollFactor, ctx->computeUnits);
 
 	ctx->CommandQueues = OclLib::createCommandQueue(opencl_ctx, ctx->DeviceID, &ret);
 	if (ret != CL_SUCCESS) {
