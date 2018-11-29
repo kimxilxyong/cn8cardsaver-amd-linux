@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 2.8)
-project(xmrig-amd)
+project(cn8cardsaver-amd)
 
 option(WITH_AEON      "CryptoNight-Lite support" ON)
 option(WITH_SUMO      "CryptoNight-Heavy support" ON)
@@ -23,6 +23,7 @@ set(HEADERS
     src/amd/OclLib.h
     src/api/NetworkState.h
     src/App.h
+    src/base/tools/String.h
     src/common/config/CommonConfig.h
     src/common/config/ConfigLoader.h
     src/common/config/ConfigWatcher.h
@@ -73,6 +74,10 @@ set(HEADERS
     src/workers/OclThread.h
     src/workers/OclWorker.h
     src/workers/Workers.h
+    src/3rdparty/ADL/adl_defines.h
+    src/3rdparty/ADL/adl_sdk.h
+    src/3rdparty/ADL/adl_structures.h
+    src/amd/AdlUtils.h
    )
 
 set(HEADERS_CRYPTO
@@ -103,6 +108,7 @@ set(SOURCES
     src/amd/OclLib.cpp
     src/api/NetworkState.cpp
     src/App.cpp
+    src/base/tools/String.cpp
     src/common/config/CommonConfig.cpp
     src/common/config/ConfigLoader.cpp
     src/common/config/ConfigWatcher.cpp
@@ -133,6 +139,7 @@ set(SOURCES
     src/workers/OclWorker.cpp
     src/workers/Workers.cpp
     src/xmrig.cpp
+    src/amd/AdlUtils.cpp
    )
 
 set(SOURCES_CRYPTO
