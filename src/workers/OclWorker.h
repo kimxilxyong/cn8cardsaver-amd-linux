@@ -40,14 +40,14 @@ class Handle;
 class OclWorker : public IWorker
 {
 public:
-	
+
     OclWorker(Handle *handle);
 
 protected:
     inline uint64_t hashCount() const override { return m_hashCount.load(std::memory_order_relaxed); }
     inline uint64_t timestamp() const override { return m_timestamp.load(std::memory_order_relaxed); }
-    inline bool selfTest() override            { return true; }
-    inline size_t id() const override          { return m_id; }
+    inline bool selfTest() override { return true; }
+    inline size_t id() const override { return m_id; }
 
     void start() override;
 
@@ -57,6 +57,7 @@ private:
     void save(const Job &job);
     void setJob();
     void storeStats();
+    OclThread *m_thread;
 
     const size_t m_id;
     const size_t m_threads;

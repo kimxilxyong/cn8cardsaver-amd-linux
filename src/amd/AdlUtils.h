@@ -9,6 +9,7 @@
 #include <uv.h>
 
 #include "3rdparty/ADL/adl_structures.h"
+#include "workers/OclThread.h"
 
 // Memory allocation function
 //void* __stdcall ADL_Main_Memory_Alloc(int iSize);
@@ -25,8 +26,13 @@ typedef struct _CoolingContext {
 	bool IsFanControlEnabled = false;
 	int pciBus = -1;
 	int Card = -1;
+#ifdef __linux__
 	std::ifstream ifsTemp;
 	std::ifstream ifsFan;
+#else
+    ADL_CONTEXT_HANDLE context;
+    int MaxFanSpeed;
+#endif
 	//uv_mutex_t m_mutex;
 } CoolingContext;
 
@@ -34,15 +40,21 @@ class AdlUtils
 {
 public:
 	
-	static int InitADL(ADL_CONTEXT_HANDLE *context, CoolingContext *cool);
-	static int ReleaseADL(ADL_CONTEXT_HANDLE context, CoolingContext *cool);
-	static int Temperature(ADL_CONTEXT_HANDLE context, cl_device_id DeviceId, int deviceIdx, CoolingContext *cool);
-	static int TemperatureLinux(ADL_CONTEXT_HANDLE context, cl_device_id DeviceId, int deviceIdx, CoolingContext *cool);
-	static int TemperatureWindows(ADL_CONTEXT_HANDLE context, cl_device_id DeviceId, int deviceIdx, CoolingContext *cool);
-	static int SetFanPercent(ADL_CONTEXT_HANDLE context, CoolingContext *cool, int percent);
-	static int SetFanPercentLinux(ADL_CONTEXT_HANDLE context, CoolingContext *cool, int percent);
-	static int SetFanPercentWindows(ADL_CONTEXT_HANDLE context, CoolingContext *cool, int percent);
-	static int DoCooling(ADL_CONTEXT_HANDLE context, cl_device_id DeviceID, int deviceIdx, int ThreadID, CoolingContext *cool);
+	static bool InitADL(CoolingContext *cool);
+	static bool ReleaseADL(CoolingContext *cool);
+    static bool Get_DeviceID_by_PCI(CoolingContext *cool, OclThread * thread);
+	static bool Temperature(CoolingContext *cool);
+	static bool TemperatureLinux(CoolingContext *cool);
+	static bool TemperatureWindows(CoolingContext *cool);
+    static bool GetFanPercent(CoolingContext *cool, int *percent);
+    static bool GetFanPercentLinux(CoolingContext *cool, int *percent);
+    static bool GetFanPercentWindows(CoolingContext *cool, int *percent);
+	static bool SetFanPercent(CoolingContext *cool, int percent);
+	static bool SetFanPercentLinux(CoolingContext *cool, int percent);
+	static bool SetFanPercentWindows(CoolingContext *cool, int percent);
+	static bool DoCooling(cl_device_id DeviceID, int deviceIdx, int ThreadID, CoolingContext *cool);
+
+    static bool GetMaxFanRpm(CoolingContext *cool);
 
 };
 

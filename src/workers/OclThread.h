@@ -42,6 +42,8 @@ public:
     inline int memChunk() const     { return m_memChunk; }
     inline int stridedIndex() const { return m_stridedIndex; }
     inline int unrollFactor() const { return m_unrollFactor; }
+    inline int cardId() const       { return m_cardId; }
+    inline int threadId() const     { return m_threadId; }
     inline size_t intensity() const { return m_intensity; }
     inline size_t worksize() const  { return m_worksize; }
 
@@ -52,6 +54,8 @@ public:
     inline void setIndex(size_t index)         { m_index = index; }
     inline void setIntensity(size_t intensity) { m_intensity = intensity; }
     inline void setWorksize(size_t worksize)   { m_worksize = worksize; }
+    inline void setCardId(int cardid)          { m_cardId = cardid; }
+    inline void setThreadId(int threadid)      { m_threadId = threadid; }
     
     inline uint32_t pciBusID() const      { return m_pciBusID; }
     inline uint32_t pciDeviceID() const   { return m_pciDeviceID; }
@@ -86,6 +90,8 @@ private:
     int m_memChunk;
     int m_stridedIndex;
     int m_unrollFactor;
+    int m_cardId;
+    int m_threadId;
     int64_t m_affinity;
     size_t m_index;
     size_t m_intensity;

@@ -58,6 +58,7 @@ OclWorker::OclWorker(Handle *handle) :
     m_blob()
 {
     const int64_t affinity = handle->config()->affinity();
+    m_thread = static_cast<OclThread *>(handle->config());
 
     if (affinity >= 0) {
         Platform::setThreadAffinity(affinity);
@@ -68,33 +69,42 @@ OclWorker::OclWorker(Handle *handle) :
 
 void OclWorker::start()
 {
-	char offset[2000];
-	int iReduceMining = 0;
-	int iSleepFactor = 1000;
-	int LastTemp = 0;
-	int temp;
-	int NeedCooling = 0;
-    int AdlOk;
-	cl_uint results[0x100];
-	ADL_CONTEXT_HANDLE context;
-	CoolingContext cool;
+    char offset[2000];
+    int iReduceMining = 0;
+    int iSleepFactor = 1000;
+    int LastTemp = 0;
+    int temp;
+    int NeedCooling = 0;
+    bool IsCoolingEnabled = false;;
+    cl_uint results[0x100];
+    //ADL_CONTEXT_HANDLE context;
+    CoolingContext cool;
+
+    m_thread->setThreadId(m_id);
 
     cool.pciBus = m_ctx->device_pciBusID;
     cool.Card = m_ctx->deviceIdx;
 
-	Workers::addWorkercount();
+    Workers::addWorkercount();
 
-	AdlOk = AdlUtils::InitADL(&context, &cool);
-    if (AdlOk != ADL_OK) {
+    IsCoolingEnabled = AdlUtils::InitADL(&cool);
+    if (IsCoolingEnabled == false) {
         LOG_WARN("Cooling is disabled for thread %i!", id());
     }
-	
+    else {
+        IsCoolingEnabled = AdlUtils::Get_DeviceID_by_PCI(&cool, m_thread);
+        if (!IsCoolingEnabled) {
+            LOG_ERR("Failed get_deviceid_by_pci DeviceId %i pciDeviceID %02x pciBusID %02x pciDomainID %02x", cool.Card, m_thread->pciDeviceID(), m_thread->pciBusID(), m_thread->pciDomainID());
+        }
+        AdlUtils::GetMaxFanRpm(&cool);
+        m_thread->setCardId(cool.Card);
+
+    }
     while (Workers::sequence() > 0) {
         if (Workers::isPaused()) {
             do {
                 std::this_thread::sleep_for(std::chrono::milliseconds(200));
-            }
-            while (Workers::isPaused());
+            } while (Workers::isPaused());
 
             if (Workers::sequence() == 0) {
                 break;
@@ -102,15 +112,15 @@ void OclWorker::start()
 
             consumeJob();
         }
-		int LastTemp;
-		if (AdlOk == ADL_OK)
-            AdlUtils::DoCooling(context, m_ctx->DeviceID, m_ctx->deviceIdx, m_id, &cool);
-		
+        int LastTemp;
+        if (IsCoolingEnabled)
+            AdlUtils::DoCooling(m_ctx->DeviceID, m_ctx->deviceIdx, m_id, &cool);
+
         while (!Workers::isOutdated(m_sequence)) {
 
-			//LOG_INFO("**Card %u Temperature %i iReduceMining %i iSleepFactor %i LastTemp %i NeedCooling %i ", m_ctx->deviceIdx, temp, iReduceMining, iSleepFactor, LastTemp, NeedCooling);
-            if (AdlOk == ADL_OK)
-			    AdlUtils::DoCooling(context, m_ctx->DeviceID, m_ctx->deviceIdx, m_id, &cool);
+            //LOG_INFO("**Card %u Temperature %i iReduceMining %i iSleepFactor %i LastTemp %i NeedCooling %i ", m_ctx->deviceIdx, temp, iReduceMining, iSleepFactor, LastTemp, NeedCooling);
+            if (IsCoolingEnabled)
+                AdlUtils::DoCooling(m_ctx->DeviceID, m_ctx->deviceIdx, m_id, &cool);
 
             memset(results, 0, sizeof(cl_uint) * (0x100));
 
@@ -118,11 +128,11 @@ void OclWorker::start()
 
             for (size_t i = 0; i < results[0xFF]; i++) {
                 *m_job.nonce() = results[i];
-				m_job.setTemp(cool.CurrentTemp);
+                m_job.setTemp(cool.CurrentTemp);
                 m_job.setFan(cool.CurrentFan);
-				m_job.setNeedscooling(cool.NeedsCooling);
+                m_job.setNeedscooling(cool.NeedsCooling);
                 m_job.setSleepfactor(cool.SleepFactor);
-				m_job.setCard(m_ctx->deviceIdx);
+                m_job.setCard(cool.Card);
                 m_job.setThreadId(m_id);
                 Workers::submit(m_job);
             }
@@ -135,17 +145,17 @@ void OclWorker::start()
 
         consumeJob();
     }
-    if (AdlOk == ADL_OK)
-	    AdlUtils::ReleaseADL(context, &cool);
+    if (IsCoolingEnabled)
+        AdlUtils::ReleaseADL(&cool);
 
-	Workers::removeWorkercount();
+    Workers::removeWorkercount();
 }
 
 
 bool OclWorker::resume(const Job &job)
 {
     if (m_job.poolId() == -1 && job.poolId() >= 0 && job.id() == m_pausedJob.id()) {
-        m_job   = m_pausedJob;
+        m_job = m_pausedJob;
         m_nonce = m_pausedNonce;
         return true;
     }
@@ -188,7 +198,7 @@ void OclWorker::consumeJob()
 void OclWorker::save(const Job &job)
 {
     if (job.poolId() == -1 && m_job.poolId() >= 0) {
-        m_pausedJob   = m_job;
+        m_pausedJob = m_job;
         m_pausedNonce = m_nonce;
     }
 }

@@ -27,9 +27,11 @@
 #include <thread>
 #include <iostream>
 #include <fstream>
-#include <dlfcn.h>
 #include <string>
+#ifdef __linux__
+#include <dlfcn.h>
 #include <unistd.h>
+#endif
 #include <sys/types.h>
 
 #include <CL/cl_ext.h>
@@ -52,6 +54,11 @@ typedef int(*ADL2_MAIN_CONTROL_DESTROY)(ADL_CONTEXT_HANDLE);
 typedef int(*ADL2_OVERDRIVEN_TEMPERATURE_GET) (ADL_CONTEXT_HANDLE, int, int, int*);
 typedef int(*ADL2_ADAPTER_NUMBEROFADAPTERS_GET)(ADL_CONTEXT_HANDLE, int*);
 typedef int(*ADL2_ADAPTER_ADAPTERINFO_GET)(ADL_CONTEXT_HANDLE context, LPAdapterInfo lpInfo, int iInputSize);
+typedef int(*ADL2_OVERDRIVEN_FANCONTROL_GET) (ADL_CONTEXT_HANDLE, int, ADLODNFanControl*);
+typedef int(*ADL2_OVERDRIVEN_FANCONTROL_SET) (ADL_CONTEXT_HANDLE, int, ADLODNFanControl*);
+typedef int(*ADL2_OVERDRIVE6_FANSPEED_GET) (ADL_CONTEXT_HANDLE, int, ADLOD6FanSpeedInfo *);
+typedef int(*ADL2_OVERDRIVE6_FANSPEED_SET) (ADL_CONTEXT_HANDLE, int, ADLOD6FanSpeedValue *);
+typedef int(*ADL2_OVERDRIVEN_CAPABILITIES_GET)	(ADL_CONTEXT_HANDLE, int, ADLODNCapabilities*);
 
 static uv_mutex_t m_mutex;
 
@@ -61,7 +68,11 @@ ADL2_MAIN_CONTROL_DESTROY                       ADL2_Main_Control_Destroy = null
 ADL2_OVERDRIVEN_TEMPERATURE_GET					ADL2_OverdriveN_Temperature_Get = nullptr;
 ADL2_ADAPTER_NUMBEROFADAPTERS_GET				ADL2_Adapter_NumberOfAdapters_Get = nullptr;
 ADL2_ADAPTER_ADAPTERINFO_GET					ADL2_Adapter_AdapterInfo_Get = nullptr;
-
+ADL2_OVERDRIVEN_FANCONTROL_GET                  ADL2_OverdriveN_FanControl_Get = nullptr;
+ADL2_OVERDRIVEN_FANCONTROL_SET                  ADL2_OverdriveN_FanControl_Set = nullptr;
+ADL2_OVERDRIVE6_FANSPEED_SET                    ADL2_Overdrive6_FanSpeed_Set = nullptr;
+ADL2_OVERDRIVE6_FANSPEED_GET                    ADL2_Overdrive6_FanSpeed_Get = nullptr;
+ADL2_OVERDRIVEN_CAPABILITIES_GET                ADL2_OverdriveN_Capabilities_Get = nullptr;
 
 // Memory allocation function
 void* __stdcall ADL_Main_Memory_Alloc(int iSize)
@@ -102,89 +113,103 @@ const char *getUserName()
 
 #endif
 
-int AdlUtils::InitADL(ADL_CONTEXT_HANDLE *context, CoolingContext *cool)
-{
 #ifdef __linux__
-	void *hDLL = NULL;             // Handle to .so library
+void *hDLL = NULL;      // Handle to .so library
 #else
-	HINSTANCE hDLL;         // Handle to DLL
+HINSTANCE hDLL;         // Handle to DLL
 #endif
 
+bool AdlUtils::InitADL(CoolingContext *cool)
+{
+
 #ifdef __linux__
-	//hDLL = dlopen("./libatiadlxx.so", RTLD_LAZY | RTLD_GLOBAL);
+    //hDLL = dlopen("./libatiadlxx.so", RTLD_LAZY | RTLD_GLOBAL);
 
-	//string fn("TEST");
-	//fn = "/sys/module/amdgpu/drivers/pci:amdgpu/0000:" << cool->pciBus << ":00.0/hwmon/hwmon" << cool->Card << "/temp1_input";
-	char filenameBuf[100];
-	snprintf(filenameBuf, 100, "/sys/module/amdgpu/drivers/pci:amdgpu/0000:%02x:00.0/hwmon/hwmon%i/temp1_input", cool->pciBus, cool->Card);
-	//LOG_INFO("OPEN std::ifstream %s", filenameBuf);
-	cool->ifsTemp.open (filenameBuf, std::ifstream::in);
-	if (!cool->ifsTemp.is_open()) {
-		LOG_ERR("Failed to open %s", filenameBuf);
-		return ADL_ERR;
-	}
+    //string fn("TEST");
+    //fn = "/sys/module/amdgpu/drivers/pci:amdgpu/0000:" << cool->pciBus << ":00.0/hwmon/hwmon" << cool->Card << "/temp1_input";
+    char filenameBuf[100];
+    snprintf(filenameBuf, 100, "/sys/module/amdgpu/drivers/pci:amdgpu/0000:%02x:00.0/hwmon/hwmon%i/temp1_input", cool->pciBus, cool->Card);
+    //LOG_INFO("OPEN std::ifstream %s", filenameBuf);
+    cool->ifsTemp.open(filenameBuf, std::ifstream::in);
+    if (!cool->ifsTemp.is_open()) {
+        LOG_ERR("Failed to open %s", filenameBuf);
+        return false;
+    }
 
 
 
-	snprintf(filenameBuf, 100, "/sys/module/amdgpu/drivers/pci:amdgpu/0000:%02x:00.0/hwmon/hwmon%i/pwm1", cool->pciBus, cool->Card);
-	//LOG_INFO("OPEN std::ifstream %s", filenameBuf);
-	cool->ifsFan.open (filenameBuf, std::ifstream::in);
-	if (!cool->ifsFan.is_open()) {
-		LOG_ERR("Failed to open %s", filenameBuf);
+    snprintf(filenameBuf, 100, "/sys/module/amdgpu/drivers/pci:amdgpu/0000:%02x:00.0/hwmon/hwmon%i/pwm1", cool->pciBus, cool->Card);
+    //LOG_INFO("OPEN std::ifstream %s", filenameBuf);
+    cool->ifsFan.open(filenameBuf, std::ifstream::in);
+    if (!cool->ifsFan.is_open()) {
+        LOG_ERR("Failed to open %s", filenameBuf);
 
-		// Check for root
-		uid_t uid = geteuid();
-		if (uid != 0) {
-			LOG_ERR("UserID %i has no priviledge to open fan control, needs to be run as root, fan control disabled!", uid);
-			cool->IsFanControlEnabled = false;
-		}
+        // Check for root
+        uid_t uid = geteuid();
+        if (uid != 0) {
+            LOG_ERR("UserID %i has no priviledge to open fan control, needs to be run as root, fan control disabled!", uid);
+            cool->IsFanControlEnabled = false;
+        }
 
-		return ADL_ERR;
-	}
-	cool->IsFanControlEnabled = true;
 
-	
+    }
+    cool->IsFanControlEnabled = true;
+    return true;
+
 #else	
-
-	hDLL = LoadLibrary("atiadlxx.dll");
-	if (hDLL == NULL)
-		// A 32 bit calling application on 64 bit OS will fail to LoadLIbrary.
-		// Try to load the 32 bit library (atiadlxy.dll) instead
-		hDLL = LoadLibrary("atiadlxy.dll");
+    if (hDLL == NULL) {
+        hDLL = LoadLibraryA("atiadlxx.dll");
+        if (hDLL == NULL)
+            // A 32 bit calling application on 64 bit OS will fail to LoadLIbrary.
+            // Try to load the 32 bit library (atiadlxy.dll) instead
+            hDLL = LoadLibraryA("atiadlxy.dll");
+    }
 #endif
 
 #ifndef __linux__
-	if (NULL == hDLL)
+    if (NULL == hDLL)
+    {
+        LOG_ERR("ADL library not found! Please install atiadlxx.dll");
+        return false;
+    }
+
+    ADL2_Main_Control_Create = (ADL2_MAIN_CONTROL_CREATE)GetProcAddress(hDLL, "ADL2_Main_Control_Create");
+    ADL2_Main_Control_Destroy = (ADL2_MAIN_CONTROL_DESTROY)GetProcAddress(hDLL, "ADL2_Main_Control_Destroy");
+    ADL2_OverdriveN_Temperature_Get = (ADL2_OVERDRIVEN_TEMPERATURE_GET)GetProcAddress(hDLL, "ADL2_OverdriveN_Temperature_Get");
+    ADL2_Adapter_NumberOfAdapters_Get = (ADL2_ADAPTER_NUMBEROFADAPTERS_GET)GetProcAddress(hDLL, "ADL2_Adapter_NumberOfAdapters_Get");
+    ADL2_Adapter_AdapterInfo_Get = (ADL2_ADAPTER_ADAPTERINFO_GET)GetProcAddress(hDLL, "ADL2_Adapter_AdapterInfo_Get");
+    ADL2_OverdriveN_FanControl_Get = (ADL2_OVERDRIVEN_FANCONTROL_GET)GetProcAddress(hDLL, "ADL2_OverdriveN_FanControl_Get");
+    ADL2_OverdriveN_FanControl_Set = (ADL2_OVERDRIVEN_FANCONTROL_SET)GetProcAddress(hDLL, "ADL2_OverdriveN_FanControl_Set");
+    ADL2_OverdriveN_Capabilities_Get = (ADL2_OVERDRIVEN_CAPABILITIES_GET)GetProcAddress(hDLL, "ADL2_OverdriveN_Capabilities_Get");
+
+    ADL2_Overdrive6_FanSpeed_Get = (ADL2_OVERDRIVE6_FANSPEED_GET)GetProcAddress(hDLL, "ADL2_Overdrive6_FanSpeed_Get");
+    ADL2_Overdrive6_FanSpeed_Set = (ADL2_OVERDRIVE6_FANSPEED_SET)GetProcAddress(hDLL, "ADL2_Overdrive6_FanSpeed_Set");
+
+    if (NULL == ADL2_Main_Control_Create ||
+        NULL == ADL2_Main_Control_Destroy ||
+        NULL == ADL2_OverdriveN_Temperature_Get ||
+        NULL == ADL2_Adapter_NumberOfAdapters_Get ||
+        NULL == ADL2_Adapter_AdapterInfo_Get ||
+        NULL == ADL2_OverdriveN_FanControl_Get ||
+        NULL == ADL2_OverdriveN_FanControl_Set ||
+        NULL == ADL2_Overdrive6_FanSpeed_Get ||
+        NULL == ADL2_OverdriveN_Capabilities_Get ||
+        NULL == ADL2_Overdrive6_FanSpeed_Set)
 	{
-		//fprintf(stderr, "ADL library not found! Please install atiadlxx.dll(64 bit) or atiadlxy(32 bit).dll.\n");
-		LOG_ERR("ADL library not found! %s", dlerror());
-		
-		return ADL_ERR;
+		LOG_ERR("ADL APIs are missing!");
+		return false;
 	}
 
-	ADL2_Main_Control_Create = (ADL2_MAIN_CONTROL_CREATE)GetProcAddress(hDLL, "ADL2_Main_Control_Create");
-	ADL2_Main_Control_Destroy = (ADL2_MAIN_CONTROL_DESTROY)GetProcAddress(hDLL, "ADL2_Main_Control_Destroy");
-	ADL2_OverdriveN_Temperature_Get = (ADL2_OVERDRIVEN_TEMPERATURE_GET)GetProcAddress(hDLL, "ADL2_OverdriveN_Temperature_Get");
-	ADL2_Adapter_NumberOfAdapters_Get = (ADL2_ADAPTER_NUMBEROFADAPTERS_GET)GetProcAddress(hDLL, "ADL2_Adapter_NumberOfAdapters_Get");
-	ADL2_Adapter_AdapterInfo_Get = (ADL2_ADAPTER_ADAPTERINFO_GET)GetProcAddress(hDLL, "ADL2_Adapter_AdapterInfo_Get");
-
-	if (NULL == ADL2_Main_Control_Create ||
-		NULL == ADL2_Main_Control_Destroy ||
-		NULL == ADL2_OverdriveN_Temperature_Get ||
-		NULL == ADL2_Adapter_NumberOfAdapters_Get ||
-		NULL == ADL2_Adapter_AdapterInfo_Get)
-	{
-		LOG_ERR("ADL APIs are missing! %s", dlerror());
-		return ADL_ERR;
-	}
-
-	return ADL2_Main_Control_Create(ADL_Main_Memory_Alloc, 1, context);
+    if (ADL2_Main_Control_Create(ADL_Main_Memory_Alloc, 1, &cool->context) == ADL_OK) {        
+        return true;
+    }
+    return false;
 #else
    return ADL_OK;
 #endif
 }
 
-int  AdlUtils::ReleaseADL(ADL_CONTEXT_HANDLE context, CoolingContext *cool)
+bool  AdlUtils::ReleaseADL(CoolingContext *cool)
 {
 #ifdef __linux__
 	if (!cool->FanIsAutomatic) {
@@ -198,30 +223,178 @@ int  AdlUtils::ReleaseADL(ADL_CONTEXT_HANDLE context, CoolingContext *cool)
 	if (cool->ifsFan.is_open()) {
 		cool->ifsFan.close();
 	}
+
 #else	
-	return ADL2_Main_Control_Destroy(context);
+    int ret = ADL2_Main_Control_Destroy(cool->context);
+    if (hDLL != NULL) {
+        FreeLibrary(hDLL);
+        hDLL = NULL;
+    }
+    return ret == ADL_OK ? true : false;
 #endif	
 }
 
-int AdlUtils::SetFanPercent(ADL_CONTEXT_HANDLE context, CoolingContext *cool, int percent)
+bool AdlUtils::Get_DeviceID_by_PCI(CoolingContext *cool, OclThread * thread)
+{
+    int iNumberAdapters = 0;
+    bool found = false;
+
+    if (ADL_OK == ADL2_Adapter_NumberOfAdapters_Get(cool->context, &iNumberAdapters)) {
+
+        AdapterInfo* infos = new AdapterInfo[iNumberAdapters];
+        if (ADL_OK == ADL2_Adapter_AdapterInfo_Get(cool->context, infos, sizeof(AdapterInfo)*iNumberAdapters)) {
+
+            int iCandidateIndex;
+            int iCandidateCount = 0;            
+
+            for (int i = 0; i < iNumberAdapters; i++) {
+                //LOG_INFO("%i " YELLOW("PCI:%04x:%02x:%02x") " UID %s AdapterID %i present %i exists %i", i, infos[i].iFunctionNumber, infos[i].iBusNumber, infos[i].iDeviceNumber, infos[i].strDriverPath, infos[i].iAdapterIndex, infos[i].iPresent, infos[i].iExist);
+                if (thread->pciBusID() == infos[i].iBusNumber) {
+                    iCandidateIndex = i;
+                    cool->Card = i;
+                    
+                    AdlUtils::GetMaxFanRpm(cool);
+
+                    if (TemperatureWindows(cool)) {
+                        LOG_INFO("Card "  YELLOW("PCI:%04x:%02x:%02x") " Temp %i Thread %i ADL Adapter %i", thread->pciDomainID(), thread->pciBusID(), thread->pciDeviceID(), cool->CurrentTemp, thread->threadId(), cool->Card);
+                        found = true;
+                        break;
+                    }
+                    else {
+                        LOG_ERR("Failed to get Temperature for Display Adapter %i", cool->Card);
+                    }
+                    //if (iCandidateCount == 0) {
+                    //    LOG_INFO("***** Card %u adapterindex %u, adlbus %x oclbus %x", i, infos[i].iAdapterIndex, infos[i].iBusNumber, thread->pciBusID());
+                    //    found = true;
+                    //    break;
+                    //}
+                    //else {
+                    //    iCandidateCount++;
+                    //}
+                }
+
+                
+            }
+        }
+    }
+    return found;
+}
+
+bool AdlUtils::GetMaxFanRpm(CoolingContext *cool)
+{
+    ADLODNCapabilities overdriveCapabilities;
+    memset(&overdriveCapabilities, 0, sizeof(ADLODNCapabilities));
+
+    if (ADL_OK != ADL2_OverdriveN_Capabilities_Get(cool->context, cool->Card, &overdriveCapabilities))
+    {
+        LOG_ERR("ADL2_OverdriveN_Capabilities_Get failed\n");
+        cool->MaxFanSpeed = -1;
+        return false;
+    }
+    else {
+        cool->MaxFanSpeed = overdriveCapabilities.fanSpeed.iMax;
+    }
+    return true;
+}
+bool AdlUtils::GetFanPercent(CoolingContext *cool, int *percent)
+{
+#ifdef __linux__
+    return GetFanPercentLinux(cool, percent);
+#else
+    return GetFanPercentWindows(cool, percent);
+#endif
+}
+
+bool AdlUtils::GetFanPercentLinux(CoolingContext *cool, int *percent)
+{
+    return false;
+}
+
+bool AdlUtils::GetFanPercentWindows(CoolingContext *cool, int *percent)
+{
+   /*
+    ADLOD6FanSpeedInfo odNFanSpeed;
+    memset(&odNFanSpeed, 0, sizeof(ADLOD6FanSpeedInfo));
+    int ret = ADL2_Overdrive6_FanSpeed_Get(cool->context, cool->Card, &odNFanSpeed);
+    if (ADL_OK == ret)
+    {
+        cool->CurrentFan = odNFanSpeed.iFanSpeedPercent;
+        if (percent != NULL)
+        {
+            *percent = cool->CurrentFan;
+        }
+        return true;
+    }
+    return false;
+    */
+
+    //AdlUtils::SetFanPercentWindows(cool, 100);
+    //AdlUtils::SetFanPercentWindows(cool, 2400);
+
+    ADLODNFanControl odNFanControl;
+    memset(&odNFanControl, 0, sizeof(ADLODNFanControl));
+
+    odNFanControl.iCurrentFanSpeedMode = ADL_DL_FANCTRL_SPEED_TYPE_PERCENT;
+    odNFanControl.iMode = ADLODNControlType::ODNControlType_Manual;
+    
+    if (ADL_OK == ADL2_OverdriveN_FanControl_Get(cool->context, cool->Card, &odNFanControl))
+    {
+        cool->CurrentFan = (odNFanControl.iCurrentFanSpeed * 100) / cool->MaxFanSpeed;
+        if (percent != NULL)
+        {
+           *percent = cool->CurrentFan;
+        }
+        return true;
+    }
+    return false;
+}
+
+bool AdlUtils::SetFanPercent(CoolingContext *cool, int percent)
 {
 	
 	if (!cool->IsFanControlEnabled) {
-		return ADL_ERR;
+		return false;
 	}
 	
 	if (percent < 0) percent = 0;
 	if (percent > 100) percent = 100;
 
 #ifdef __linux__
-	return SetFanPercentLinux(context, cool, percent);
+	return SetFanPercentLinux( cool, percent);
 #else
-	return SetFanPercentWindowsw(context, cool, percent);
+	return SetFanPercentWindows( cool, percent);
 #endif	
 }
 
-int AdlUtils::SetFanPercentLinux(ADL_CONTEXT_HANDLE context, CoolingContext *cool, int percent)
+bool AdlUtils::SetFanPercentWindows(CoolingContext *cool, int percent)
 {
+#ifdef __linux__
+    return ADL_ERR;
+#else
+    ADLODNFanControl odNFanControl;
+    memset(&odNFanControl, 0, sizeof(ADLODNFanControl));
+
+    if (percent == 0) {
+        odNFanControl.iMinFanLimit = 500;
+        odNFanControl.iMode = ADLODNControlType::ODNControlType_Auto;
+    }
+    else {
+        odNFanControl.iMinFanLimit = (percent * cool->MaxFanSpeed) / 100;
+        odNFanControl.iMode = ADLODNControlType::ODNControlType_Manual;
+    }
+
+    int ret = ADL2_OverdriveN_FanControl_Set(cool->context, cool->Card, &odNFanControl);
+    if (ADL_OK == ret)
+    {
+        return true;
+    }
+    return false;
+#endif
+}
+
+bool AdlUtils::SetFanPercentLinux(CoolingContext *cool, int percent)
+{
+#ifdef __linux__
 	int result;
 	char filenameBuf[100];
 	std::ofstream ifsFanControl;
@@ -239,7 +412,7 @@ int AdlUtils::SetFanPercentLinux(ADL_CONTEXT_HANDLE context, CoolingContext *coo
 			LOG_ERR("UserID %i has no priviledge to open fan control, needs to be run as root, fan control disabled!", uid);
 			cool->IsFanControlEnabled = false;
 		}
-		return ADL_ERR;
+		return false;
 	}
 	cool->IsFanControlEnabled = true;
 
@@ -261,7 +434,7 @@ int AdlUtils::SetFanPercentLinux(ADL_CONTEXT_HANDLE context, CoolingContext *coo
 		ifsFanSpeed.open (filenameBuf);
 		if (!ifsFanSpeed.is_open()) {
 			LOG_ERR("Failed to open %s", filenameBuf);
-			return ADL_ERR;
+			return false;
 		}
 
 		int speed = (percent * 255) / 100;
@@ -270,35 +443,27 @@ int AdlUtils::SetFanPercentLinux(ADL_CONTEXT_HANDLE context, CoolingContext *coo
 		result = ADL_OK;
 	}
 
-	return result;
+	return true;
+#else
+    return false;
+#endif
 }
 
-int AdlUtils::SetFanPercentWindows(ADL_CONTEXT_HANDLE context, CoolingContext *cool, int percent)
+
+bool AdlUtils::Temperature(CoolingContext *cool)
 {
-	return ADL_OK;
+#ifdef __linux__
+    return TemperatureLinux(cool);
+#else
+    return TemperatureWindows(cool);
+#endif
 }
 
-int AdlUtils::TemperatureLinux(ADL_CONTEXT_HANDLE context, cl_device_id DeviceId, int deviceIdx, CoolingContext *cool)
+bool AdlUtils::TemperatureLinux(CoolingContext *cool)
 {
+#ifdef __linux__
 	int result;
-	cl_device_topology_amd topology;
 
-	cl_int status = OclLib::getDeviceInfo(DeviceId, CL_DEVICE_TOPOLOGY_AMD,
-		sizeof(cl_device_topology_amd), &topology, NULL);
-
-	if (status != CL_SUCCESS) {
-		// Handle error
-		//LOG_ERR("Failed to get clGetDeviceInfo %u", status);
-		return ADL_ERR;
-	}
-
-	if (topology.raw.type == CL_DEVICE_TOPOLOGY_TYPE_PCIE_AMD) {
-		//LOG_DEBUG("****************** m_ctx->deviceIdx %u INFO: Topology: PCI[ B#%u D#%u F#%u ]", deviceIdx, (int)topology.pcie.bus, (int)topology.pcie.device, (int)topology.pcie.function);		
-	}
-
-	if (cool->pciBus != (int)topology.pcie.bus) {
-		//LOG_WARN("PCI Bus mismatch: cool->pciBus != topology.pcie.bus");
-	}
 	
 	int temp = 0;
 	int fan = 0;
@@ -325,7 +490,7 @@ int AdlUtils::TemperatureLinux(ADL_CONTEXT_HANDLE context, cl_device_id DeviceId
 	}
 
 	cool->CurrentTemp = temp / 1000;
-	cool->CurrentFan = (fan * 100) / 255;
+	//cool->CurrentFan = (fan * 100) / 255;
 
 	//LOG_INFO("FINAL std::ifstream temp %i", temp);
 			
@@ -335,73 +500,25 @@ int AdlUtils::TemperatureLinux(ADL_CONTEXT_HANDLE context, cl_device_id DeviceId
 				//LOG_DEBUG("***** Card %u temp %u adapterindex %u, adlbus %u oclbus %u", i, temp, infos[i].iAdapterIndex, infos[i].iBusNumber, topology.pcie.bus);
 			
 	
-	return result;
-}
-
-int AdlUtils::TemperatureWindows(ADL_CONTEXT_HANDLE context, cl_device_id DeviceId, int deviceIdx, CoolingContext *cool)
-{
-	cl_device_topology_amd topology;
-
-	cl_int status = OclLib::getDeviceInfo(DeviceId, CL_DEVICE_TOPOLOGY_AMD,
-		sizeof(cl_device_topology_amd), &topology, NULL);
-
-	if (status != CL_SUCCESS) {
-		// Handle error
-		LOG_ERR("Failed to get clGetDeviceInfo %u", status);
-	}
-
-	if (topology.raw.type == CL_DEVICE_TOPOLOGY_TYPE_PCIE_AMD) {
-		LOG_DEBUG("****************** m_ctx->deviceIdx %u INFO: Topology: PCI[ B#%u D#%u F#%u ]", deviceIdx, (int)topology.pcie.bus, (int)topology.pcie.device, (int)topology.pcie.function);
-	}
-	int temp = 0;
-	int iNumberAdapters = 0;
-	if (ADL_OK == ADL2_Adapter_NumberOfAdapters_Get(context, &iNumberAdapters)) {
-
-		AdapterInfo* infos = new AdapterInfo[iNumberAdapters];
-		if (ADL_OK == ADL2_Adapter_AdapterInfo_Get(context, infos, sizeof(AdapterInfo)*iNumberAdapters)) {
-
-			int iCandidateIndex;
-			int iCandidateCount = 0;
-			bool found = false;
-
-			for (int i = 0; i < iNumberAdapters; i++) {
-
-				if (topology.pcie.bus == infos[i].iBusNumber) {
-					iCandidateIndex = i;
-
-					if (iCandidateCount == deviceIdx) {
-						if (ADL_OK != ADL2_OverdriveN_Temperature_Get(context, i, 1, &temp)) {
-							LOG_ERR("Failed to get ADL2_OverdriveN_Temperature_Get");
-						}
-
-						found = true;
-						break;
-					}
-					else {
-						iCandidateCount++;
-					}
-				}
-
-				LOG_DEBUG("***** Card %u temp %u adapterindex %u, adlbus %u oclbus %u", i, temp, infos[i].iAdapterIndex, infos[i].iBusNumber, topology.pcie.bus);
-			}
-		}
-	}
-    cool->CurrentTemp = temp / 1000;
-	cool->CurrentFan = -1;
-	return ADL_OK;
-}
-
-int AdlUtils::Temperature(ADL_CONTEXT_HANDLE context, cl_device_id DeviceId, int deviceIdx, CoolingContext *cool)
-{
-#ifdef __linux__
-	return TemperatureLinux(context, DeviceId, deviceIdx, cool);
+	return true;
 #else
-	return TemperatureWindows(context, DeviceId, deviceIdx, cool);
+    return false;
 #endif
 }
 
 
-int  AdlUtils::DoCooling(ADL_CONTEXT_HANDLE context, cl_device_id DeviceID, int deviceIdx, int ThreadID, CoolingContext *cool)
+bool AdlUtils::TemperatureWindows(CoolingContext *cool)
+{	
+	if (ADL_OK != ADL2_OverdriveN_Temperature_Get(cool->context, cool->Card, 1, &cool->CurrentTemp)) {
+		LOG_ERR("Failed to get ADL2_OverdriveN_Temperature_Get");
+        return false;
+	}
+    cool->CurrentTemp = cool->CurrentTemp / 1000;
+	return true;
+}
+
+
+bool  AdlUtils::DoCooling(cl_device_id DeviceID, int deviceIdx, int ThreadID, CoolingContext *cool)
 {
 	const int StartSleepFactor = 500;
     const float IncreaseSleepFactor = 1.5;
@@ -410,9 +527,11 @@ int  AdlUtils::DoCooling(ADL_CONTEXT_HANDLE context, cl_device_id DeviceID, int 
 
 	//LOG_INFO("AdlUtils::Temperature(context, DeviceID, deviceIdx) %i", deviceIdx);
 	
-	if (AdlUtils::Temperature(context, DeviceID, deviceIdx, cool) != ADL_OK) {
-		return ADL_ERR;
+	if (AdlUtils::Temperature(cool) != true) {
+		return false;
 	}
+    AdlUtils::GetFanPercent(cool, NULL);
+
 	if (cool->CurrentTemp > Workers::maxtemp()) {
 		if (!cool->NeedsCooling) {
 			cool->SleepFactor = StartSleepFactor;
@@ -430,7 +549,7 @@ int  AdlUtils::DoCooling(ADL_CONTEXT_HANDLE context, cl_device_id DeviceID, int 
 			// Decrease fan speed
 			if (cool->CurrentFan > 0)
 				cool->CurrentFan = cool->CurrentFan - FanFactor;
-			AdlUtils::SetFanPercent(context, cool, cool->CurrentFan);
+			AdlUtils::SetFanPercent(cool, cool->CurrentFan);
 			
 
 		}
@@ -449,7 +568,7 @@ int  AdlUtils::DoCooling(ADL_CONTEXT_HANDLE context, cl_device_id DeviceID, int 
 		// Increase fan speed
 		if (cool->CurrentFan < 100)
 			cool->CurrentFan = cool->CurrentFan + (FanFactor*3);
-		AdlUtils::SetFanPercent(context, cool, cool->CurrentFan);
+		AdlUtils::SetFanPercent( cool, cool->CurrentFan);
 
 		//LOG_INFO("Card %u Temperature %i iReduceMining %i iSleepFactor %i LastTemp %i NeedCooling %i ", deviceIdx, temp, iReduceMining, cool->SleepFactor, cool->LastTemp, cool->NeedCooling);
 
@@ -464,18 +583,18 @@ int  AdlUtils::DoCooling(ADL_CONTEXT_HANDLE context, cl_device_id DeviceID, int 
 			if (!cool->FanIsAutomatic) {
 				if (cool->CurrentFan > FanAutoDefault) {
 					cool->CurrentFan = cool->CurrentFan - FanFactor;
-					AdlUtils::SetFanPercent(context, cool, cool->CurrentFan);
+					AdlUtils::SetFanPercent( cool, cool->CurrentFan);
 				}
 				else {
 					if (cool->CurrentFan < FanAutoDefault) {
 						// Set back to automatic fan control
 						cool->CurrentFan = 0;
-						AdlUtils::SetFanPercent(context, cool, cool->CurrentFan);
+						AdlUtils::SetFanPercent( cool, cool->CurrentFan);
 					}	
 				}
 			}
 		}
 	}
 	cool->LastTemp = cool->CurrentTemp;
-	return ADL_OK;
+	return true;
 }
