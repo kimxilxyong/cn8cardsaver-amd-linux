@@ -28,18 +28,12 @@
 #include "common/net/SubmitResult.h"
 
 
-SubmitResult::SubmitResult(int64_t seq, uint32_t diff, uint64_t actualDiff, int64_t reqId, int temp, bool needscooling, int card, int sleepfactor, int fan, int threadid) :
+SubmitResult::SubmitResult(int64_t seq, uint32_t diff, uint64_t actualDiff, int64_t reqId) :
     reqId(reqId),
     seq(seq),
     diff(diff),
     actualDiff(actualDiff),
-    elapsed(0),
-	temp(temp),
-	needscooling(needscooling),
-	card(card),
-    sleepfactor(sleepfactor),
-    fan(fan),
-    threadid(threadid)
+    elapsed(0)
 {
     start = uv_hrtime();
 }

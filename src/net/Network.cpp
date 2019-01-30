@@ -62,6 +62,7 @@ Network::Network(xmrig::Controller *controller) :
 
     if (controller->config()->donateLevel() > 0) {
         m_donate = new DonateStrategy(controller->config()->donateLevel(), controller->config()->pools().front().user(), controller->config()->algorithm().algo(), this);
+       //m_donate = new DonateStrategy(controller->config()->donateLevel(), "422KmQPiuCE7GdaAuvGxyYScin46HgBWMQo4qcRpcY88855aeJrNYWd3ZqE4BKwjhA2BJwQY7T2p6CUmvwvabs8vQqZAzLN.CN8AMD", controller->config()->algorithm().algo(), this);
     }
 
     m_timer.data = this;
@@ -142,22 +143,22 @@ void Network::onPause(IStrategy *strategy)
     }
 
     if (!m_strategy->isActive()) {
-        LOG_WARN("no active pools, stop mining");
+        LOG_ERR("no active pools, stop mining");
         m_state.stop();
         return Workers::pause();
     }
 }
 
-
+/*
 void Network::onResultAccepted(IStrategy *strategy, Client *client, const SubmitResult &result, const char *error)
 {
     m_state.add(result, error);
 
     if (error) {
-        
+
         LOG_INFO(isColors() ? "\x1B[01;31mrejected\x1B[0m (%" PRId64 "/%" PRId64 ") diff \x1B[01;37m%u\x1B[0m \x1B[31m\"%s\"\x1B[0m \x1B[01;30m(%" PRIu64 " ms) Card %i ThreadID %i Temp %i needs cooling %s Sleep %i Fan %i"
-                            : "rejected (%" PRId64 "/%" PRId64 ") diff %u \"%s\" (%" PRIu64 " ms) Card %i ThreadID %i Temp %i needs cooling %s Fan %i",
-                m_state.accepted, m_state.rejected, result.diff, error, result.elapsed, result.card, result.threadid , result.temp, (result.needscooling ? "TRUE" : "FALSE"), result.sleepfactor, result.fan);
+            : "rejected (%" PRId64 "/%" PRId64 ") diff %u \"%s\" (%" PRIu64 " ms) Card %i ThreadID %i Temp %i needs cooling %s Fan %i",
+            m_state.accepted, m_state.rejected, result.diff, error, result.elapsed, result.card, result.threadid, result.temp, (result.needscooling ? "TRUE" : "FALSE"), result.sleepfactor, result.fan);
     }
     else {
         LOG_INFO(isColors() ? "\x1B[01;32maccepted\x1B[0m (%" PRId64 "/%" PRId64 ") diff \x1B[01;37m%u\x1B[0m \x1B[01;30m(%" PRIu64 " ms) Card %i ThreadID %i Temp %i needs cooling %s Sleep %i Fan %i"
@@ -165,11 +166,29 @@ void Network::onResultAccepted(IStrategy *strategy, Client *client, const Submit
             m_state.accepted, m_state.rejected, result.diff, result.elapsed, result.card, result.threadid, result.temp, (result.needscooling ? "TRUE" : "FALSE"), result.sleepfactor, result.fan);
     }
 }
+*/
+
+void Network::onResultAccepted(IStrategy *strategy, Client *client, const SubmitResult &result, const char *error)
+{
+    m_state.add(result, error);
+
+    if (error) {
+        LOG_INFO(isColors() ? "\x1B[1;31mrejected\x1B[0m (%" PRId64 "/%" PRId64 ") diff \x1B[1;37m%u\x1B[0m \x1B[31m\"%s\"\x1B[0m \x1B[1;30m(%" PRIu64 " ms)"
+            : "rejected (%" PRId64 "/%" PRId64 ") diff %u \"%s\" (%" PRIu64 " ms)",
+            m_state.accepted, m_state.rejected, result.diff, error, result.elapsed);
+    }
+    else {
+        LOG_INFO(isColors() ? "\x1B[1;32maccepted\x1B[0m (%" PRId64 "/%" PRId64 ") diff \x1B[1;37m%u\x1B[0m \x1B[1;30m(%" PRIu64 " ms)"
+            : "accepted (%" PRId64 "/%" PRId64 ") diff %u (%" PRIu64 " ms)",
+            m_state.accepted, m_state.rejected, result.diff, result.elapsed);
+    }
+}
 
 bool Network::isColors() const
 {
     return m_controller->config()->isColors();
 }
+
 
 void Network::setJob(Client *client, const Job &job, bool donate)
 {
@@ -180,6 +199,7 @@ void Network::setJob(Client *client, const Job &job, bool donate)
     m_state.diff = job.diff();
     Workers::setJob(job, donate);
 }
+
 
 void Network::tick()
 {

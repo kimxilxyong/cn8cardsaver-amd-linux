@@ -6,7 +6,8 @@
  * Copyright 2016      Jay D Dee   <jayddee246@gmail.com>
  * Copyright 2017-2018 XMR-Stak    <https://github.com/fireice-uk>, <https://github.com/psychocrypt>
  * Copyright 2018      Lee Clagett <https://github.com/vtnerd>
- * Copyright 2016-2018 XMRig       <https://github.com/xmrig>, <support@xmrig.com>
+ * Copyright 2018-2019 SChernykh   <https://github.com/SChernykh>
+ * Copyright 2016-2019 XMRig       <https://github.com/xmrig>, <support@xmrig.com>
  *
  *   This program is free software: you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -23,28 +24,36 @@
  */
 
 
+#include <inttypes.h>
+#include <mutex>
 #include <thread>
 
- // This cl_ext is provided as part of the AMD APP SDK
-//#include <CL/cl.h>
-#include <CL/cl_ext.h>
 
-#include "amd/OclCache.h"
-#include "amd/OclError.h"
-#include "amd/OclLib.h"
 #include "amd/OclGPU.h"
-#include "amd/AdlUtils.h"
+#include "common/log/Log.h"
 #include "common/Platform.h"
+#include "common/utils/timestamp.h"
+#include "core/Config.h"
 #include "crypto/CryptoNight.h"
 #include "workers/Handle.h"
 #include "workers/OclThread.h"
 #include "workers/OclWorker.h"
 #include "workers/Workers.h"
-#include "common/log/Log.h"
-#include "3rdparty/ADL/adl_sdk.h"
-#include "3rdparty/ADL/adl_defines.h"
-#include "3rdparty/ADL/adl_structures.h"
 
+#include "amd/AdlUtils.h"
+
+#define MAX_DEVICE_COUNT 32
+
+
+static struct SGPUThreadInterleaveData
+{
+    std::mutex m;
+
+    double adjustThreshold   = 0.95;
+    double averageRunTime    = 0;
+    int64_t lastRunTimeStamp = 0;
+    int resumeCounter        = 0;
+} GPUThreadInterleaveData[MAX_DEVICE_COUNT];
 
 
 OclWorker::OclWorker(Handle *handle) :
@@ -61,31 +70,25 @@ OclWorker::OclWorker(Handle *handle) :
     m_thread = static_cast<OclThread *>(handle->config());
 
     if (affinity >= 0) {
-        Platform::setThreadAffinity(affinity);
+        Platform::setThreadAffinity(static_cast<uint64_t>(affinity));
     }
 }
 
 
-
 void OclWorker::start()
 {
-    char offset[2000];
-    int iReduceMining = 0;
-    int iSleepFactor = 1000;
-    int LastTemp = 0;
-    int temp;
-    int NeedCooling = 0;
-    bool IsCoolingEnabled = false;;
+    SGPUThreadInterleaveData& interleaveData = GPUThreadInterleaveData[m_ctx->deviceIdx % MAX_DEVICE_COUNT];
     cl_uint results[0x100];
-    //ADL_CONTEXT_HANDLE context;
+    bool IsCoolingEnabled = false;
+
     CoolingContext cool;
 
     m_thread->setThreadId(m_id);
 
-    cool.pciBus = m_ctx->device_pciBusID;
+    //cool.pciBus = m_ctx->device_pciBusID;
     cool.Card = m_ctx->deviceIdx;
 
-    Workers::addWorkercount();
+    //Workers::addWorkercount();
 
     IsCoolingEnabled = AdlUtils::InitADL(&cool);
     if (IsCoolingEnabled == false) {
@@ -100,63 +103,76 @@ void OclWorker::start()
         m_thread->setCardId(cool.Card);
 
     }
+
     while (Workers::sequence() > 0) {
+
+        if (IsCoolingEnabled)
+            AdlUtils::DoCooling(m_ctx->DeviceID, m_ctx->deviceIdx, m_id, &cool);
+
+        while (!Workers::isOutdated(m_sequence)) {
+
+            if (IsCoolingEnabled)
+                AdlUtils::DoCooling(m_ctx->DeviceID, m_ctx->deviceIdx, m_id, &cool);
+
+            memset(results, 0, sizeof(cl_uint) * (0x100));
+            
+            const int64_t delay = interleaveAdjustDelay();
+            if (delay > 0) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(delay));
+
+#               ifdef APP_INTERLEAVE_DEBUG
+                LOG_WARN("Thread #%zu was paused for %" PRId64 " ms to adjust interleaving", m_id, delay);
+#               endif
+            }
+
+            const int64_t t = xmrig::steadyTimestamp();
+
+            XMRRunJob(m_ctx, results, m_job.algorithm().variant());
+
+            for (size_t i = 0; i < results[0xFF]; i++) {
+                *m_job.nonce() = results[i];
+                Workers::submit(m_job);
+            }
+
+            storeStats(t);
+            std::this_thread::yield();
+        }
+
         if (Workers::isPaused()) {
+            {
+                std::lock_guard<std::mutex> g(interleaveData.m);
+                interleaveData.resumeCounter = 0;
+            }
+
             do {
-                std::this_thread::sleep_for(std::chrono::milliseconds(200));
+                std::this_thread::sleep_for(std::chrono::milliseconds(50));
             } while (Workers::isPaused());
 
             if (Workers::sequence() == 0) {
                 break;
             }
 
-            consumeJob();
-        }
-        int LastTemp;
-        if (IsCoolingEnabled)
-            AdlUtils::DoCooling(m_ctx->DeviceID, m_ctx->deviceIdx, m_id, &cool);
+            const int64_t delay = resumeDelay();
+            if (delay > 0) {
+#               ifdef APP_INTERLEAVE_DEBUG
+                LOG_WARN("Thread #%zu will be paused for %" PRId64 " ms to before resuming", m_id, delay);
+#               endif
 
-        while (!Workers::isOutdated(m_sequence)) {
-
-            //LOG_INFO("**Card %u Temperature %i iReduceMining %i iSleepFactor %i LastTemp %i NeedCooling %i ", m_ctx->deviceIdx, temp, iReduceMining, iSleepFactor, LastTemp, NeedCooling);
-            if (IsCoolingEnabled)
-                AdlUtils::DoCooling(m_ctx->DeviceID, m_ctx->deviceIdx, m_id, &cool);
-
-            memset(results, 0, sizeof(cl_uint) * (0x100));
-
-            XMRRunJob(m_ctx, results, m_job.algorithm().variant());
-
-            for (size_t i = 0; i < results[0xFF]; i++) {
-                *m_job.nonce() = results[i];
-                m_job.setTemp(cool.CurrentTemp);
-                m_job.setFan(cool.CurrentFan);
-                m_job.setNeedscooling(cool.NeedsCooling);
-                m_job.setSleepfactor(cool.SleepFactor);
-                m_job.setCard(cool.Card);
-                m_job.setThreadId(m_id);
-                Workers::submit(m_job);
+                std::this_thread::sleep_for(std::chrono::milliseconds(delay));
             }
-
-            m_count += m_ctx->rawIntensity;
-
-            storeStats();
-            std::this_thread::yield();
         }
 
         consumeJob();
     }
-    if (IsCoolingEnabled)
-        AdlUtils::ReleaseADL(&cool);
-
-    Workers::removeWorkercount();
 }
 
 
 bool OclWorker::resume(const Job &job)
 {
     if (m_job.poolId() == -1 && job.poolId() >= 0 && job.id() == m_pausedJob.id()) {
-        m_job = m_pausedJob;
-        m_nonce = m_pausedNonce;
+        m_job        = m_pausedJob;
+        m_ctx->Nonce = m_pausedNonce;
+
         return true;
     }
 
@@ -164,11 +180,62 @@ bool OclWorker::resume(const Job &job)
 }
 
 
+int64_t OclWorker::interleaveAdjustDelay() const
+{
+    SGPUThreadInterleaveData &data = GPUThreadInterleaveData[m_ctx->deviceIdx % MAX_DEVICE_COUNT];
+
+    const int64_t t0 = xmrig::steadyTimestamp();
+    int64_t delay    = 0;
+
+    {
+        std::lock_guard<std::mutex> g(data.m);
+
+        const int64_t dt = t0 - data.lastRunTimeStamp;
+        data.lastRunTimeStamp = t0;
+
+        // The perfect interleaving is when N threads on the same GPU start with T/N interval between each other
+        // If a thread starts earlier than 0.75*T/N ms after the previous thread, delay it to restore perfect interleaving
+        if ((m_ctx->threads > 1) && (dt > 0) && (dt < data.adjustThreshold * (data.averageRunTime / m_ctx->threads))) {
+            delay = static_cast<int64_t>(data.averageRunTime / m_ctx->threads - dt);
+            data.adjustThreshold = 0.75;
+        }
+    }
+
+    if (delay >= 400) {
+        delay = 200;
+    }
+
+    return delay;
+}
+
+
+int64_t OclWorker::resumeDelay() const
+{
+    SGPUThreadInterleaveData &data = GPUThreadInterleaveData[m_ctx->deviceIdx % MAX_DEVICE_COUNT];
+
+    int64_t delay = 0;
+
+    {
+        constexpr const double firstThreadSpeedupCoeff = 1.25;
+
+        std::lock_guard<std::mutex> g(data.m);
+        delay = static_cast<int64_t>(data.resumeCounter * data.averageRunTime / m_ctx->threads / firstThreadSpeedupCoeff);
+        ++data.resumeCounter;
+    }
+
+    if (delay > 1000) {
+        delay = 1000;
+    }
+
+    return delay;
+}
+
+
 void OclWorker::consumeJob()
 {
     Job job = Workers::job();
     m_sequence = Workers::sequence();
-    if (m_job == job) {
+    if (m_job.id() == job.id() && m_job.clientId() == job.clientId()) {
         return;
     }
 
@@ -183,13 +250,11 @@ void OclWorker::consumeJob()
     m_job.setThreadId(m_id);
 
     if (m_job.isNicehash()) {
-        m_nonce = (*m_job.nonce() & 0xff000000U) + (0xffffffU / m_threads * m_id);
+        m_ctx->Nonce = (*m_job.nonce() & 0xff000000U) + (0xffffffU / m_threads * m_id);
     }
     else {
-        m_nonce = 0xffffffffU / m_threads * m_id;
+        m_ctx->Nonce = 0xffffffffU / m_threads * m_id;
     }
-
-    m_ctx->Nonce = m_nonce;
 
     setJob();
 }
@@ -198,8 +263,8 @@ void OclWorker::consumeJob()
 void OclWorker::save(const Job &job)
 {
     if (job.poolId() == -1 && m_job.poolId() >= 0) {
-        m_pausedJob = m_job;
-        m_pausedNonce = m_nonce;
+        m_pausedJob   = m_job;
+        m_pausedNonce = m_ctx->Nonce;
     }
 }
 
@@ -212,11 +277,29 @@ void OclWorker::setJob()
 }
 
 
-void OclWorker::storeStats()
+void OclWorker::storeStats(int64_t t)
 {
-    using namespace std::chrono;
+    if (Workers::isPaused()) {
+        return;
+    }
 
-    const uint64_t timestamp = time_point_cast<milliseconds>(high_resolution_clock::now()).time_since_epoch().count();
+    SGPUThreadInterleaveData &data = GPUThreadInterleaveData[m_ctx->deviceIdx % MAX_DEVICE_COUNT];
+
+    m_count += m_ctx->rawIntensity;
+
+    // averagingBias = 1.0 - only the last delta time is taken into account
+    // averagingBias = 0.5 - the last delta time has the same weight as all the previous ones combined
+    // averagingBias = 0.1 - the last delta time has 10% weight of all the previous ones combined
+    const double averagingBias = 0.1;
+
+    {
+        int64_t t2 = xmrig::steadyTimestamp();
+
+        std::lock_guard<std::mutex> g(data.m);
+        data.averageRunTime = data.averageRunTime * (1.0 - averagingBias) + (t2 - t) * averagingBias;
+    }
+
+    const uint64_t timestamp = static_cast<uint64_t>(xmrig::currentMSecsSinceEpoch());
     m_hashCount.store(m_count, std::memory_order_relaxed);
     m_timestamp.store(timestamp, std::memory_order_relaxed);
 }

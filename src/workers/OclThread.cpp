@@ -32,6 +32,9 @@
 #include "workers/OclThread.h"
 #include "common/log/Log.h"
 
+#include "amd/GpuContext.h"
+
+
 
 OclThread::OclThread() :
     m_compMode(true),
@@ -110,13 +113,6 @@ OclThread::~OclThread()
 {
 }
 
-void  OclThread::setCtx(GpuContext *ctx)
-{
-	m_ctx = ctx;
-    m_pciBusID = ctx->device_pciBusID;
-    m_pciDeviceID = ctx->device_pciDeviceID;
-    m_pciDomainID = ctx->device_pciDomainID;
-}
 
 void OclThread::setMemChunk(int memChunk)
 {
@@ -124,6 +120,7 @@ void OclThread::setMemChunk(int memChunk)
         m_memChunk = memChunk;
     }
 }
+
 
 void OclThread::setStridedIndex(int stridedIndex)
 {

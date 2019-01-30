@@ -21,8 +21,8 @@
  *   along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __JOBRESULT_H__
-#define __JOBRESULT_H__
+#ifndef XMRIG_JOBRESULT_H
+#define XMRIG_JOBRESULT_H
 
 
 #include <memory.h>
@@ -35,19 +35,14 @@
 class JobResult
 {
 public:
-    inline JobResult() : poolId(0), diff(0), nonce(0), temp(0), needscooling(false), card(-1), sleepfactor(0), fan(-4), threadid(0) {}
-    inline JobResult(int poolId, const xmrig::Id &jobId, uint32_t nonce, const uint8_t *result, uint32_t diff, const xmrig::Algorithm &algorithm, int temp, bool needscooling, int card, int sleepfactor, int fan, int threadid) :
+    inline JobResult() : poolId(0), diff(0), nonce(0) {}
+    inline JobResult(int poolId, const xmrig::Id &jobId, const xmrig::Id &clientId, uint32_t nonce, const uint8_t *result, uint32_t diff, const xmrig::Algorithm &algorithm) :
         poolId(poolId),
         diff(diff),
         nonce(nonce),
         algorithm(algorithm),
-        jobId(jobId),
-		temp(temp),
-		needscooling(needscooling),
-		card(card),
-        sleepfactor(sleepfactor),
-        fan(fan),
-        threadid(threadid)
+        clientId(clientId),
+        jobId(jobId)
     {
         memcpy(this->result, result, sizeof(this->result));
     }
@@ -55,17 +50,12 @@ public:
 
     inline JobResult(const Job &job) : poolId(0), diff(0), nonce(0)
     {
-        jobId        = job.id();
-        poolId       = job.poolId();
-        diff         = job.diff();
-        nonce        = *job.nonce();
-        algorithm    = job.algorithm();
-		temp         = job.temp();
-		needscooling = job.needscooling();
-		card         = job.card();
-        sleepfactor  = job.sleepfactor(),
-        fan          = job.fan();
-        threadid     = job.threadId();
+        jobId     = job.id();
+        clientId  = job.clientId();
+        poolId    = job.poolId();
+        diff      = job.diff();
+        nonce     = *job.nonce();
+        algorithm = job.algorithm();
     }
 
 
@@ -80,13 +70,8 @@ public:
     uint32_t nonce;
     uint8_t result[32];
     xmrig::Algorithm algorithm;
+    xmrig::Id clientId;
     xmrig::Id jobId;
-	int temp;
-	bool needscooling;
-	int card;
-    int sleepfactor;
-    int fan;
-    int threadid;
 };
 
-#endif /* __JOBRESULT_H__ */
+#endif /* XMRIG_JOBRESULT_H */

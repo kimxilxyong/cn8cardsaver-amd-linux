@@ -7,7 +7,7 @@
  * Copyright 2017-2018 XMR-Stak    <https://github.com/fireice-uk>, <https://github.com/psychocrypt>
  * Copyright 2018      Lee Clagett <https://github.com/vtnerd>
  * Copyright 2018      SChernykh   <https://github.com/SChernykh>
- * Copyright 2016-2018 XMRig       <https://github.com/xmrig>, <support@xmrig.com>
+ * Copyright 2016-2019 XMRig       <https://github.com/xmrig>, <support@xmrig.com>
  *
  *   This program is free software: you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -66,17 +66,12 @@ Job::Job() :
     m_size(0),
     m_diff(0),
     m_target(0),
-    m_blob(),
-	m_temp(0),
-	m_needscooling(false),
-	m_card(-1),
-    m_sleepfactor(0),
-    m_fan(-2)
+    m_blob()
 {
 }
 
 
-Job::Job(int poolId, bool nicehash, const xmrig::Algorithm &algorithm, const xmrig::Id &clientId, int temp, bool needscooling, int card, int sleepfactor, int fan) :
+Job::Job(int poolId, bool nicehash, const xmrig::Algorithm &algorithm, const xmrig::Id &clientId) :
     m_autoVariant(algorithm.variant() == xmrig::VARIANT_AUTO),
     m_nicehash(nicehash),
     m_poolId(poolId),
@@ -86,18 +81,19 @@ Job::Job(int poolId, bool nicehash, const xmrig::Algorithm &algorithm, const xmr
     m_target(0),
     m_blob(),
     m_algorithm(algorithm),
-    m_clientId(clientId),
-	m_temp(temp),
-	m_needscooling(needscooling),
-	m_card(card),
-    m_sleepfactor(sleepfactor),
-    m_fan(fan)
+    m_clientId(clientId)
 {
 }
 
 
 Job::~Job()
 {
+}
+
+
+bool Job::isEqual(const Job &other) const
+{
+    return m_id == other.m_id && m_clientId == other.m_clientId && memcmp(m_blob, other.m_blob, sizeof(m_blob)) == 0;
 }
 
 
@@ -127,6 +123,15 @@ bool Job::setBlob(const char *blob)
 
     if (m_autoVariant) {
         m_algorithm.setVariant(variant());
+    }
+
+    if (!m_algorithm.isForced()) {
+        if (m_algorithm.variant() == xmrig::VARIANT_XTL && m_blob[0] >= 9) {
+            m_algorithm.setVariant(xmrig::VARIANT_HALF);
+        }
+        else if (m_algorithm.variant() == xmrig::VARIANT_MSR && m_blob[0] >= 8) {
+            m_algorithm.setVariant(xmrig::VARIANT_HALF);
+        }
     }
 
 #   ifdef XMRIG_PROXY_PROJECT
@@ -222,18 +227,6 @@ char *Job::toHex(const unsigned char* in, unsigned int len)
     return out;
 }
 #endif
-
-
-bool Job::operator==(const Job &other) const
-{
-    return m_id == other.m_id && memcmp(m_blob, other.m_blob, sizeof(m_blob)) == 0;
-}
-
-
-bool Job::operator!=(const Job &other) const
-{
-    return m_id != other.m_id || memcmp(m_blob, other.m_blob, sizeof(m_blob)) != 0;
-}
 
 
 xmrig::Variant Job::variant() const

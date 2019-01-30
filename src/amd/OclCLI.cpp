@@ -5,8 +5,8 @@
  * Copyright 2014-2016 Wolf9466    <https://github.com/OhGodAPet>
  * Copyright 2016      Jay D Dee   <jayddee246@gmail.com>
  * Copyright 2017-2018 XMR-Stak    <https://github.com/fireice-uk>, <https://github.com/psychocrypt>
- * Copyright 2018      SChernykh   <https://github.com/SChernykh>
- * Copyright 2016-2018 XMRig       <https://github.com/xmrig>, <support@xmrig.com>
+ * Copyright 2018-2019 SChernykh   <https://github.com/SChernykh>
+ * Copyright 2016-2019 XMRig       <https://github.com/xmrig>, <support@xmrig.com>
  *
  *   This program is free software: you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -30,7 +30,6 @@
 
 #include <CL/cl_ext.h>
 
-
 #include "amd/cryptonight.h"
 #include "amd/OclCLI.h"
 #include "amd/OclGPU.h"
@@ -41,252 +40,286 @@
 #include "workers/OclThread.h"
 
 
+
 OclCLI::OclCLI()
 {
 }
 
 int OclCLI::getPCIInfo(GpuContext *context, int DeviceId)
 {
-	cl_device_topology_amd topology;
 
-	cl_int status = OclLib::getDeviceInfo(context->DeviceID, CL_DEVICE_TOPOLOGY_AMD,
-		sizeof(cl_device_topology_amd), &topology, NULL);
+    cl_device_topology_amd topology;
 
-	if (status != CL_SUCCESS) {
-		// Handle error
-		LOG_ERR("Failed to get clGetDeviceInfo %u", status);
-	}
+    cl_int status = OclLib::getDeviceInfo(context->DeviceID, CL_DEVICE_TOPOLOGY_AMD,
+        sizeof(cl_device_topology_amd), &topology, NULL);
 
-	if (topology.raw.type == CL_DEVICE_TOPOLOGY_TYPE_PCIE_AMD) {
-		LOG_DEBUG("****************** m_ctx->deviceIdx %u INFO: Topology: PCI[ B#%u D#%u F#%u ]", deviceIdx, (int)topology.pcie.bus, (int)topology.pcie.device, (int)topology.pcie.function);
-		context->device_pciBusID = (int)topology.pcie.bus;
-		context->device_pciDeviceID = (int)topology.pcie.device;
-		context->device_pciDomainID = (int)topology.pcie.function;
+    if (status != CL_SUCCESS) {
+        // Handle error
+        LOG_ERR("Failed to get clGetDeviceInfo %u", status);
+    }
 
-	}
-	return status;
+    if (topology.raw.type == CL_DEVICE_TOPOLOGY_TYPE_PCIE_AMD) {
+        LOG_DEBUG("****************** m_ctx->deviceIdx %u INFO: Topology: PCI[ B#%u D#%u F#%u ]", deviceIdx, (int)topology.pcie.bus, (int)topology.pcie.device, (int)topology.pcie.function);
+        context->device_pciBusID = (int)topology.pcie.bus;
+        context->device_pciDeviceID = (int)topology.pcie.device;
+        context->device_pciDomainID = (int)topology.pcie.function;
+
+    }
+    return status;
 }
 
-bool OclCLI::setup(std::vector<xmrig::IThread *> &threads, GpuContext *context)
+bool OclCLI::setup(std::vector<xmrig::IThread *> &threads)
 {
-	if (isEmpty()) {
-		return false;
-	}
+    if (isEmpty()) {
+        return false;
+    }
 
-	for (size_t i = 0; i < m_devices.size(); i++) {
-		OclThread *thread = new OclThread(m_devices[i], intensity(i), worksize(i), affinity(i));
-		thread->setStridedIndex(stridedIndex(i));
-		thread->setMemChunk(memChunk(i));
-		thread->setUnrollFactor(unrollFactor(i));
-		thread->setCompMode(compMode(i) == 0 ? false : true);
+    for (size_t i = 0; i < m_devices.size(); i++) {
+        OclThread *thread = new OclThread(m_devices[i], intensity(i), worksize(i), affinity(i));
+        thread->setStridedIndex(stridedIndex(i));
+        thread->setMemChunk(memChunk(i));
+        thread->setUnrollFactor(unrollFactor(i));
+        thread->setCompMode(compMode(i) == 0 ? false : true);
 
-		if (context == nullptr) {
-			context = new GpuContext(m_devices[i], intensity(i), worksize(i), stridedIndex(i), memChunk(i), compMode(i) == 0 ? false : true, unrollFactor(i));
-		}
-		int CardID = m_devices[i];
-		if (getPCIInfo(context, CardID) != CL_SUCCESS) {
-			LOG_ERR("Cannot get PCI information for Card %i", CardID);
-		}
-		thread->setCtx(context);
-		
-		threads.push_back(thread);
-	}
+        threads.push_back(thread);
+    }
 
-	return true;
+    return true;
 }
 
 
 void OclCLI::autoConf(std::vector<xmrig::IThread *> &threads, xmrig::Config *config)
 {
-	std::vector<GpuContext> devices = OclGPU::getDevices(config);
-	if (devices.empty()) {
-		LOG_ERR("No devices found.");
-		return;
-	}
+    std::vector<GpuContext> devices = OclGPU::getDevices(config);
+    if (devices.empty()) {
+        LOG_ERR("No devices found.");
+        return;
+    }
 
-	const size_t hashMemSize = xmrig::cn_select_memory(config->algorithm().algo());
+    const xmrig::Algo algo   = config->algorithm().algo();
+    const size_t hashMemSize = xmrig::cn_select_memory(algo);
 
-	for (const GpuContext &ctx : devices) {
-		// Vega APU slow and can cause BSOD, skip from autoconfig.
-		if (ctx.name.compare("gfx902") == 0) {
-			continue;
-		}
+    for (const GpuContext &ctx : devices) {
+        // Vega APU slow and can cause BSOD, skip from autoconfig.
+        if (ctx.name == "gfx902") {
+            continue;
+        }
 
-		const int hints = getHints(ctx, config);
-		const size_t maxThreads = getMaxThreads(ctx, config->algorithm().algo(), hints);
-		const size_t maxIntensity = getPossibleIntensity(ctx, maxThreads, hashMemSize);
-		const size_t computeUnits = static_cast<size_t>(ctx.computeUnits);
+        int hints = getHints(ctx, config);
 
-		size_t intensity = 0;
-		if (hints & Vega) {
-			intensity = maxIntensity / computeUnits * computeUnits;
-		}
-		else {
-			intensity = (maxIntensity / (8 * computeUnits)) * computeUnits * 8;
-		}
+        const size_t maxThreads   = getMaxThreads(ctx, algo, hints);
+        const size_t maxIntensity = getPossibleIntensity(ctx, maxThreads, hashMemSize);
+        const size_t computeUnits = static_cast<size_t>(ctx.computeUnits);
 
-		assert(intensity > 0);
-		if (intensity == 0) {
-			continue;
-		}
+        size_t intensity = 0;
+        if (hints & Vega) {
+            if (algo == xmrig::CRYPTONIGHT_HEAVY && computeUnits == 64 && maxIntensity > 976) {
+                intensity = 976;
+            }
+            else {
+                intensity = maxIntensity / computeUnits * computeUnits;
+            }
+        }
+        else {
+            intensity = (maxIntensity / (8 * computeUnits)) * computeUnits * 8;
+        }
 
-		threads.push_back(createThread(ctx, intensity, hints));
+        assert(intensity > 0);
+        if (intensity == 0) {
+            continue;
+        }
 
-		if (hints & DoubleThreads) {
-			threads.push_back(createThread(ctx, intensity, hints));
-		}
-	}
+        if (ctx.vendor == xmrig::OCL_VENDOR_AMD) {
+            const bool isSmall = ctx.name == "gfx804" || ctx.name == "Baffin" || computeUnits <= 16;
+            if (isSmall) {
+                intensity /= 2;
+
+                if (algo == xmrig::CRYPTONIGHT_HEAVY) {
+                    intensity /= 2;
+                }
+            }
+
+            constexpr const size_t byteToMiB = 1024u * 1024u;
+            if ((ctx.globalMem - intensity * 2 * hashMemSize) > 128 * byteToMiB) {
+                hints |= DoubleThreads;
+            }
+        }
+
+        threads.push_back(createThread(ctx, intensity, hints));
+
+        if (hints & DoubleThreads) {
+           threads.push_back(createThread(ctx, intensity, hints));
+        }
+    }
 }
 
 
 void OclCLI::parseLaunch(const char *arg)
 {
-	char *value = strdup(arg);
-	char *pch = strtok(value, ",");
-	std::vector<char *> tmp;
+    char *value = strdup(arg);
+    char *pch   = strtok(value, ",");
+    std::vector<char *> tmp;
 
-	while (pch != nullptr) {
-		tmp.push_back(pch);
-		pch = strtok(nullptr, ",");
-	}
+    while (pch != nullptr) {
+        tmp.push_back(pch);
+        pch = strtok(nullptr, ",");
+    }
 
-	for (char *config : tmp) {
-		pch = strtok(config, "x");
-		int count = 0;
+    for (char *config : tmp) {
+        pch       = strtok(config, "x");
+        int count = 0;
 
-		while (pch != nullptr && count < 2) {
-			count++;
+        while (pch != nullptr && count < 2) {
+            count++;
 
-			const int v = (int)strtoul(pch, nullptr, 10);
-			if (count == 1) {
-				m_intensity.push_back(v > 0 ? v : 0);
-			}
-			else if (count == 2) {
-				m_worksize.push_back(v > 0 ? v : 8);
-			}
+            const int v = (int) strtoul(pch, nullptr, 10);
+            if (count == 1) {
+                m_intensity.push_back(v > 0 ? v : 0);
+            }
+            else if (count == 2) {
+                m_worksize.push_back(v > 0 ? v : 8);
+            }
 
-			pch = strtok(nullptr, "x");
-		}
+            pch = strtok(nullptr, "x");
+        }
 
-		if (count == 1) {
-			m_worksize.push_back(8);
-		}
-	}
+        if (count == 1) {
+            m_worksize.push_back(8);
+        }
+    }
 
-	free(value);
+    free(value);
 }
 
 
 int OclCLI::get(const std::vector<int> &vector, int index, int defaultValue) const
 {
-	if (vector.empty()) {
-		return defaultValue;
-	}
+    if (vector.empty()) {
+        return defaultValue;
+    }
 
-	if (static_cast<int>(vector.size()) <= index) {
-		return vector.back();
-	}
+    if (static_cast<int>(vector.size()) <= index) {
+        return vector.back();
+    }
 
-	return vector[index];
+    return vector[index];
 }
 
 
 int OclCLI::getHints(const GpuContext &ctx, xmrig::Config *config) const
 {
-	int hints = None;
-	if (config->isCNv2()) {
-		hints |= CNv2;
-	}
+    int hints = None;
+    if (config->isCNv2()) {
+        hints |= CNv2;
+    }
 
-	if (ctx.vendor == xmrig::OCL_VENDOR_AMD && (ctx.name.compare("gfx901") == 0 ||
-		ctx.name.compare("gfx904") == 0 ||
-		ctx.name.compare("gfx900") == 0 ||
-		ctx.name.compare("gfx903") == 0 ||
-		ctx.name.compare("gfx905") == 0))
-	{
-		hints |= Vega;
-		hints |= DoubleThreads;
-	}
+    if (config->algorithm().algo() == xmrig::CRYPTONIGHT_PICO) {
+        hints |= Pico;
+    }
 
-	return hints;
+    if (ctx.vendor == xmrig::OCL_VENDOR_AMD && (ctx.name == "gfx901" ||
+                                                ctx.name == "gfx904" ||
+                                                ctx.name == "gfx900" ||
+                                                ctx.name == "gfx903" ||
+                                                ctx.name == "gfx905"))
+    {
+        hints |= Vega;
+        hints |= DoubleThreads;
+    }
+
+    return hints;
 }
 
 
 OclThread *OclCLI::createThread(const GpuContext &ctx, size_t intensity, int hints) const
 {
-	const size_t worksize = ((hints & Vega) && (hints & CNv2)) ? 16 : 8;
+    const size_t worksize = worksizeByHints(hints);
+    intensity -= intensity % worksize;
 
-	int stridedIndex = 1;
-	if (ctx.vendor == xmrig::OCL_VENDOR_NVIDIA) {
-		stridedIndex = 0;
-	}
-	else if (hints & CNv2) {
-		stridedIndex = 2;
-	}
+    int stridedIndex = 1;
+    if (ctx.vendor == xmrig::OCL_VENDOR_NVIDIA) {
+        stridedIndex = 0;
+    }
+    else if (hints & CNv2) {
+        stridedIndex = 2;
+    }
 
-	GpuContext *context = new GpuContext(ctx.deviceIdx, intensity, worksize, stridedIndex, ctx.memChunk, ctx.compMode == 0 ? false : true, ctx.unrollFactor);
+    OclThread *thread = new OclThread(ctx.deviceIdx, intensity, worksize);
+    thread->setStridedIndex(stridedIndex);
+    thread->setCompMode(false);
 
-	int CardID = ctx.deviceIdx;
-	if (getPCIInfo(context, CardID) != CL_SUCCESS) {
-		LOG_ERR("Cannot get PCI information for Card %i", CardID);
-	}
+    if ((hints & Vega) && (hints & CNv2)) {
+        thread->setMemChunk(1);
+    }
 
-	OclThread *thread = new OclThread(ctx.deviceIdx, intensity, worksize);
-	thread->setStridedIndex(stridedIndex);
-	thread->setCtx(context);
-
-	return thread;
+    return thread;
 }
 
 
 void OclCLI::parse(std::vector<int> &vector, const char *arg) const
 {
-	char *value = strdup(arg);
-	char *pch = strtok(value, ",");
+    char *value = strdup(arg);
+    char *pch   = strtok(value, ",");
 
-	while (pch != nullptr) {
-		vector.push_back((int)strtoul(pch, nullptr, 10));
+    while (pch != nullptr) {
+        vector.push_back((int) strtoul(pch, nullptr, 10));
 
-		pch = strtok(nullptr, ",");
-	}
+        pch = strtok(nullptr, ",");
+    }
 
-	free(value);
+    free(value);
 }
 
 
 size_t OclCLI::getMaxThreads(const GpuContext &ctx, xmrig::Algo algo, int hints)
 {
-	const size_t ratio = algo == xmrig::CRYPTONIGHT_LITE ? 2u : 1u;
-	if (ctx.vendor == xmrig::OCL_VENDOR_INTEL) {
-		return ratio * ctx.computeUnits * 8;
-	}
+    const size_t ratio = (algo == xmrig::CRYPTONIGHT_LITE || algo == xmrig::CRYPTONIGHT_PICO) ? 2u : 1u;
+    if (ctx.vendor == xmrig::OCL_VENDOR_INTEL) {
+        return ratio * ctx.computeUnits * 8;
+    }
 
-	if (hints & Vega) {
-		if ((hints & CNv2) && ctx.computeUnits == 56) {
-			return 1792u;
-		}
+    if (hints & Vega) {
+        if ((hints & CNv2) && ctx.computeUnits == 56) {
+            return 1792u;
+        }
 
-		return ratio * 2024u;
-	}
+        return ratio * 2024u;
+    }
 
-	if (ctx.vendor == xmrig::OCL_VENDOR_NVIDIA && (ctx.name.find("P100") != std::string::npos ||
-		ctx.name.find("V100") != std::string::npos))
-	{
-		return 40000u;
-	}
+    if (ctx.vendor == xmrig::OCL_VENDOR_NVIDIA && (ctx.name.contains("P100") ||
+                                                   ctx.name.contains("V100")))
+    {
+        return 40000u;
+    }
 
-	return ratio * 1000u;
+    return ratio * 1000u;
 }
 
 
 size_t OclCLI::getPossibleIntensity(const GpuContext &ctx, size_t maxThreads, size_t hashMemSize)
 {
-	constexpr const size_t byteToMiB = 1024u * 1024u;
+    constexpr const size_t byteToMiB = 1024u * 1024u;
 
-	const size_t minFreeMem = (maxThreads == 40000u ? 512u : 128u) * byteToMiB;
-	const size_t availableMem = ctx.freeMem - minFreeMem;
-	const size_t perThread = hashMemSize + 224u;
-	const size_t maxIntensity = availableMem / perThread;
+    const size_t minFreeMem   = (maxThreads == 40000u ? 512u : 128u) * byteToMiB;
+    const size_t availableMem = ctx.freeMem - minFreeMem;
+    const size_t perThread    = hashMemSize + 224u;
+    const size_t maxIntensity = availableMem / perThread;
 
-	return std::min(maxThreads, maxIntensity);
+    return std::min(maxThreads, maxIntensity);
+}
+
+
+size_t OclCLI::worksizeByHints(int hints)
+{
+    if (hints & Vega) {
+        if (hints & Pico) {
+            return 64;
+        }
+
+        if (hints & CNv2) {
+            return 16;
+        }
+    }
+
+    return 8;
 }

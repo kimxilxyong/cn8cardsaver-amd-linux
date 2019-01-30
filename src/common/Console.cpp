@@ -37,7 +37,6 @@ Console::Console(IConsoleListener *listener)
     }
 
     uv_tty_set_mode(&m_tty, UV_TTY_MODE_RAW);
-    //m_tty_static = m_tty;
     uv_read_start(reinterpret_cast<uv_stream_t*>(&m_tty), Console::onAllocBuffer, Console::onRead);
 }
 
@@ -58,9 +57,5 @@ void Console::onRead(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf)
 
     if (nread == 1) {
         static_cast<Console*>(stream->data)->m_listener->onConsoleCommand(buf->base[0]);
-		if (buf->base[0] == 3) {
-            //uv_tty_set_mode(&Console::m_tty_static, UV_TTY_MODE_NORMAL);
-			uv_close(reinterpret_cast<uv_handle_t*>(stream), nullptr);
-		}
     }
 }

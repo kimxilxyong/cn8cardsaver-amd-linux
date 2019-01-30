@@ -37,6 +37,7 @@
 #include <string>
 
 
+#include "base/tools/String.h"
 #include "common/xmrig.h"
 
 
@@ -46,6 +47,7 @@ struct GpuContext
         deviceIdx(0),
         rawIntensity(0),
         workSize(0),
+        threads(0),
         stridedIndex(1),
         memChunk(2),
         compMode(1),
@@ -59,18 +61,17 @@ struct GpuContext
         Program(nullptr),
         Kernels{ nullptr },
         freeMem(0),
+        globalMem(0),
         computeUnits(0),
-        Nonce(0),
-        device_pciBusID(0),
-        device_pciDeviceID(0),
-        device_pciDomainID(0)
+        Nonce(0)
     {}
 
 
-    inline GpuContext(size_t index, size_t intensity, size_t worksize, int stridedIndex, int memChunk, bool compMode, int unrollFactor) :
+    inline GpuContext(size_t index, size_t intensity, size_t worksize, size_t threads, int stridedIndex, int memChunk, bool compMode, int unrollFactor) :
         deviceIdx(index),
         rawIntensity(intensity),
         workSize(worksize),
+        threads(threads),
         stridedIndex(stridedIndex),
         memChunk(memChunk),
         compMode(compMode ? 1 : 0),
@@ -84,17 +85,16 @@ struct GpuContext
         Program(nullptr),
         Kernels{ nullptr },
         freeMem(0),
+        globalMem(0),
         computeUnits(0),
-        Nonce(0),
-        device_pciBusID(0),
-        device_pciDeviceID(0),
-        device_pciDomainID(0)
+        Nonce(0)
     {}
 
     /*Input vars*/
     size_t deviceIdx;
     size_t rawIntensity;
     size_t workSize;
+    size_t threads;
     int stridedIndex;
     int memChunk;
     int compMode;
@@ -108,10 +108,12 @@ struct GpuContext
     cl_mem OutputBuffer;
     cl_mem ExtraBuffers[6];
     cl_program Program;
-    cl_kernel Kernels[12];
+    cl_kernel Kernels[13];
     size_t freeMem;
-    int computeUnits;
-    std::string name;
+    size_t globalMem;
+    cl_uint computeUnits;
+    xmrig::String board;
+    xmrig::String name;
 
     /* PCI-E values*/
     uint32_t device_pciBusID;

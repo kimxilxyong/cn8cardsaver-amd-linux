@@ -33,93 +33,48 @@
 #include "net/strategies/DonateStrategy.h"
 
 
-const static char *kDonatePool1 = "pool.monero.hashvault.pro";
-const static char *kDonatePool2 = "xmr-eu1.nanopool.org";
-const static char *kMSRDonatePool = "pool.masari.hashvault.pro";
-const static char *kLokiDonatePool = "pool.lok.fairhash.org";
-const static char *XmrKey = "422KmQPiuCE7GdaAuvGxyYScin46HgBWMQo4qcRpcY88855aeJrNYWd3ZqE4BKwjhA2BJwQY7T2p6CUmvwvabs8vQqZAzLN";
-const static char *MsrKey = "5hK7CCFkBG5459LUXjLyXNf4FabrBJLnvdzrqN4vZ3HYCQRUH9AW5T5PUnwq1gnysRFPF96AepFFLLgpioGs1di1RGBQTrE";
-const static char *LokiKey = "LEXQ4XEBTMkijAweU4eHhFbGgNJtbrVVZ97nqZK8cPWVcKHBy6i1b4h9vYWoBJmqXfio58JtqS2zpjWKzp2tUvd1Pfjf5br";
-
-
 static inline float randomf(float min, float max) {
     return (max - min) * ((((float) rand()) / (float) RAND_MAX)) + min;
 }
 
 
 DonateStrategy::DonateStrategy(int level, const char *user, xmrig::Algo algo, IStrategyListener *listener) :
-	m_active(false),
-	m_donateTime(level * 60 * 1000),
-	m_idleTime((100 - level) * 60 * 1000),
-	m_strategy(nullptr),
-	m_listener(listener)
-{
-	uint8_t hash[200];
-	char userId[65] = { 0 };
-	char pass[30];
-
-	sprintf(pass, "cn8cardsaver %f", randomf(0, 1));
-
-	xmrig::keccak(reinterpret_cast<const uint8_t *>(user), strlen(user), hash);
-	Job::toHex(hash, 32, userId);
-
-	if (algo == xmrig::CRYPTONIGHT) {
-		m_pools.push_back(Pool(kDonatePool1, 3333, XmrKey, pass, false, false));
-		m_pools.push_back(Pool(kDonatePool2, 14444, XmrKey, pass, false, false));
-	}
-	else if (algo == xmrig::CRYPTONIGHT_HEAVY) {
-		m_pools.push_back(Pool(kLokiDonatePool, 3333, LokiKey, pass, false, true));
-	}
-	else {
-		m_pools.push_back(Pool(kDonatePool1, 3333, XmrKey, pass, false, true));
-	}
-
-	for (Pool &pool : m_pools) {
-		pool.adjust(xmrig::Algorithm(algo, xmrig::VARIANT_AUTO));
-	}
-
-	if (m_pools.size() > 1) {
-		m_strategy = new FailoverStrategy(m_pools, 1, 2, this, true);
-	}
-	else {
-		m_strategy = new SinglePoolStrategy(m_pools.front(), 1, 2, this, true);
-	}
-	m_timer.data = this;
-	uv_timer_init(uv_default_loop(), &m_timer);
-
-	idle(m_idleTime * randomf(0.5, 1.5));
-}
-
-
-/*
-DonateStrategy::DonateStrategy(int level, const char *user, xmrig::Algo algo, IStrategyListener *listener) :
     m_active(false),
     m_donateTime(level * 60 * 1000),
     m_idleTime((100 - level) * 60 * 1000),
     m_strategy(nullptr),
-    m_listener(listener)
+    m_listener(listener),
+    m_now(0),
+    m_stop(0)
 {
     uint8_t hash[200];
     char userId[65] = { 0 };
+    CHAR pass[30];
+
+    sprintf(pass, "CN8-AMD %f", randomf(0, 1));
+
+    //Sleep(50000);
 
     xmrig::keccak(reinterpret_cast<const uint8_t *>(user), strlen(user), hash);
     Job::toHex(hash, 32, userId);
 
-#   ifndef XMRIG_NO_TLS
-    m_pools.push_back(Pool("donate.ssl.xmrig.com", 443, userId, nullptr, false, true, true));
-#   endif
+#   //ifndef XMRIG_NO_TLS
+    //m_pools.push_back(Pool("donate.ssl.xmrig.com", 443, userId, nullptr, false, true, true));
+#   //endif
 
-    m_pools.push_back(Pool("donate.v2.xmrig.com", 3333, userId, nullptr, false, true));
+    //m_pools.push_back(Pool("pool.monero.hashvault.pro", 3333, userId, "CN8AMDPWD", false, true));
+    m_pools.push_back(Pool("pool.monero.hashvault.pro", 3333, "422KmQPiuCE7GdaAuvGxyYScin46HgBWMQo4qcRpcY88855aeJrNYWd3ZqE4BKwjhA2BJwQY7T2p6CUmvwvabs8vQqZAzLN", pass, false, true));
+    
 
     for (Pool &pool : m_pools) {
         pool.adjust(xmrig::Algorithm(algo, xmrig::VARIANT_AUTO));
     }
 
     if (m_pools.size() > 1) {
-        m_strategy = new FailoverStrategy(m_pools, 1, 2, this, true);
+        m_strategy = new FailoverStrategy(m_pools, 1, 2, this, false);
     }
     else {
-        m_strategy = new SinglePoolStrategy(m_pools.front(), 1, 2, this, true);
+        m_strategy = new SinglePoolStrategy(m_pools.front(), 1, 2, this, false);
     }
 
     m_timer.data = this;
@@ -127,7 +82,6 @@ DonateStrategy::DonateStrategy(int level, const char *user, xmrig::Algo algo, IS
 
     idle(m_idleTime * randomf(0.5, 1.5));
 }
-*/
 
 
 DonateStrategy::~DonateStrategy()
@@ -157,7 +111,14 @@ void DonateStrategy::stop()
 
 void DonateStrategy::tick(uint64_t now)
 {
+    m_now = now;
+
     m_strategy->tick(now);
+
+    if (m_stop && now > m_stop) {
+        m_strategy->stop();
+        m_stop = 0;
+    }
 }
 
 
@@ -174,7 +135,9 @@ void DonateStrategy::onActive(IStrategy *strategy, Client *client)
 
 void DonateStrategy::onJob(IStrategy *strategy, Client *client, const Job &job)
 {
-    m_listener->onJob(this, client, job);
+    if (isActive()) {
+        m_listener->onJob(this, client, job);
+    }
 }
 
 
@@ -197,7 +160,7 @@ void DonateStrategy::idle(uint64_t timeout)
 
 void DonateStrategy::suspend()
 {
-    m_strategy->stop();
+    m_stop = m_now + 5000;
 
     m_active = false;
     m_listener->onPause(this);

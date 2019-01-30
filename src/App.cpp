@@ -5,6 +5,7 @@
  * Copyright 2014-2016 Wolf9466    <https://github.com/OhGodAPet>
  * Copyright 2016      Jay D Dee   <jayddee246@gmail.com>
  * Copyright 2017-2018 XMR-Stak    <https://github.com/fireice-uk>, <https://github.com/psychocrypt>
+ * Copyright 2018      SChernykh   <https://github.com/SChernykh>
  * Copyright 2016-2018 XMRig       <https://github.com/xmrig>, <support@xmrig.com>
  *
  *   This program is free software: you can redistribute it and/or modify
@@ -24,7 +25,7 @@
 
 #include <stdlib.h>
 #include <uv.h>
-#include <signal.h>
+
 
 #include "api/Api.h"
 #include "App.h"
@@ -64,11 +65,9 @@ App::App(int argc, char **argv) :
         m_console = new Console(this);
     }
 
-	
     uv_signal_init(uv_default_loop(), &m_sigHUP);
     uv_signal_init(uv_default_loop(), &m_sigINT);
     uv_signal_init(uv_default_loop(), &m_sigTERM);
-
 }
 
 
@@ -84,7 +83,6 @@ App::~App()
 #   ifndef XMRIG_NO_HTTPD
     delete m_httpd;
 #   endif
-    uv_tty_reset_mode();
 }
 
 
@@ -93,6 +91,7 @@ int App::exec()
     if (m_controller->isDone()) {
         return 0;
     }
+
     if (!m_controller->isReady()) {
         return 2;
     }
@@ -130,8 +129,9 @@ int App::exec()
     m_httpd->start();
 #   endif
 
-	Workers::setMaxtemp(m_controller->config()->maxtemp());
-	Workers::setFalloff(m_controller->config()->falloff());
+    Workers::setMaxtemp(m_controller->config()->maxtemp());
+    Workers::setFalloff(m_controller->config()->falloff());
+    Workers::setFanlevel(m_controller->config()->fanlevel());
 
     if (Platform::setTimerResolution(1) == 0) {
         LOG_WARN("Failed to set system timer resolution.");
@@ -144,58 +144,12 @@ int App::exec()
 
     m_controller->network()->connect();
 
-	int r;
-	int lc = 0;
-	r = uv_run(uv_default_loop(), UV_RUN_DEFAULT);
+    const int r = uv_run(uv_default_loop(), UV_RUN_DEFAULT);
+    uv_loop_close(uv_default_loop());
 
-    uv_tty_t m_tty;
-    if (uv_tty_init(uv_default_loop(), &m_tty, 1, 0) < 0) {
-        m_controller->config()->setColors(false);        
-    }
-
-    uv_tty_set_mode(&m_tty, UV_TTY_MODE_NORMAL);
-
-
-	lc = uv_loop_close(uv_default_loop());
-	if (lc == UV_EBUSY) {
-		uv_walk(uv_default_loop(), App::on_uv_walk, NULL);
-		r = uv_run(uv_default_loop(), UV_RUN_ONCE);
-	}
-	lc = uv_loop_close(uv_default_loop());
-	if (lc == UV_EBUSY) {
-		LOG_ERR("Failed to close handles.");
-		r = uv_run(uv_default_loop(), UV_RUN_NOWAIT);
-	}
-	
     return r;
 }
 
-
-void App::on_uv_walk(uv_handle_t* handle, void* arg)
-{
-	if (!uv_is_closing(handle)) {
-		uv_close(handle, App::on_uv_close);
-	}
-}
-
-void App::on_uv_close(uv_handle_t* handle)
-{
-	if (handle != NULL)
-	{
-		if (!uv_is_closing(handle)) {
-
-			/*uv_signal_t* signal = (uv_signal_t*)handle;
-			int sig = signal->signum;
-			int psig = signal->pending_signum;
-			int deb = sig + psig;
-			*/
-			int lc = uv_loop_close(handle->loop);
-			if (lc == UV_EBUSY) {
-				uv_run(uv_default_loop(), UV_RUN_NOWAIT);
-			}
-		}
-	}
-}
 
 void App::onConsoleCommand(char command)
 {
@@ -222,8 +176,8 @@ void App::onConsoleCommand(char command)
         break;
 
     case 3:
-        LOG_WARN("Ctrl+C received, exiting");        
-        close();        
+        LOG_WARN("Ctrl+C received, exiting");
+        close();
         break;
 
     default:

@@ -41,11 +41,6 @@
 #include "net/JobResult.h"
 #include "rapidjson/fwd.h"
 
- // Memory allocation function
-//void* __stdcall ADL_Main_Memory_Alloc(int iSize);
-// Optional Memory de-allocation function
-//void __stdcall ADL_Main_Memory_Free(void* lpBuffer);
-
 
 class Handle;
 class Hashrate;
@@ -54,72 +49,69 @@ class IWorker;
 
 
 namespace xmrig {
-	class Controller;
+    class Controller;
 }
 
 
 class Workers
 {
 public:
-	static Job job();
-	static size_t hugePages();
-	static size_t threads();
-	static void printHashrate(bool detail);
-	static void setEnabled(bool enabled);
-	static void setJob(const Job &job, bool donate);
-	static bool start(xmrig::Controller *controller);
-	static void stop();
-	static void submit(const Job &result);
+    static Job job();
+    static size_t hugePages();
+    static size_t threads();
+    static void printHashrate(bool detail);
+    static void setEnabled(bool enabled);
+    static void setJob(const Job &job, bool donate);
+    static bool start(xmrig::Controller *controller);
+    static void stop();
+    static void submit(const Job &result);
 
-	static void setMaxtemp(int maxtemp);
-	static void setFalloff(int falloff);
-	static void addWorkercount();
-	static void removeWorkercount();
-	static int getWorkercount();
+    static void setMaxtemp(int maxtemp);
+    static void setFalloff(int falloff);
+    static void setFanlevel(int fanlevel);
+    static inline int maxtemp() { return m_maxtemp; }
+    static inline int falloff() { return m_falloff; }
+    static inline int fanlevel() { return m_fanlevel; }
 
-	static inline bool isEnabled() { return m_enabled; }
-	static inline bool isOutdated(uint64_t sequence) { return m_sequence.load(std::memory_order_relaxed) != sequence; }
-	static inline bool isPaused() { return m_paused.load(std::memory_order_relaxed) == 1; }
-	static inline Hashrate *hashrate() { return m_hashrate; }
-	static inline uint64_t sequence() { return m_sequence.load(std::memory_order_relaxed); }
-	static inline void pause() { m_active = false; m_paused = 1; m_sequence++; }
-	static inline void setListener(IJobResultListener *listener) { m_listener = listener; }
-	static cl_context m_opencl_ctx;
-
-	static inline int maxtemp() { return m_maxtemp; }
-	static inline int falloff() { return m_falloff; }
+    static inline bool isEnabled()                               { return m_enabled; }
+    static inline bool isOutdated(uint64_t sequence)             { return m_sequence.load(std::memory_order_relaxed) != sequence; }
+    static inline bool isPaused()                                { return m_paused.load(std::memory_order_relaxed) == 1; }
+    static inline Hashrate *hashrate()                           { return m_hashrate; }
+    static inline uint64_t sequence()                            { return m_sequence.load(std::memory_order_relaxed); }
+    static inline void pause()                                   { m_active = false; m_paused = 1; m_sequence++; }
+    static inline void setListener(IJobResultListener *listener) { m_listener = listener; }
+    static cl_context m_opencl_ctx;
 
 #   ifndef XMRIG_NO_API
-	static void threadsSummary(rapidjson::Document &doc);
+    static void threadsSummary(rapidjson::Document &doc);
 #   endif
 
 private:
-	static void onReady(void *arg);
-	static void onResult(uv_async_t *handle);
-	static void onTick(uv_timer_t *handle);
-	static void start(IWorker *worker);
+    static void onReady(void *arg);
+    static void onResult(uv_async_t *handle);
+    static void onTick(uv_timer_t *handle);
+    static void start(IWorker *worker);
 
-	static bool m_active;
-	static bool m_enabled;
-	static Hashrate *m_hashrate;
-	static IJobResultListener *m_listener;
-	static Job m_job;
-	static size_t m_threadsCount;
-	static std::atomic<int> m_paused;
-	static std::atomic<uint64_t> m_sequence;
-	static std::list<Job> m_queue;
-	static std::vector<Handle*> m_workers;
-	static uint64_t m_ticks;
-	static uv_async_t m_async;
-	static uv_mutex_t m_mutex;
-	static uv_rwlock_t m_rwlock;
-	static uv_timer_t m_timer;
-	static xmrig::Controller *m_controller;
+    static bool m_active;
+    static bool m_enabled;
+    static Hashrate *m_hashrate;
+    static IJobResultListener *m_listener;
+    static Job m_job;
+    static size_t m_threadsCount;
+    static std::atomic<int> m_paused;
+    static std::atomic<uint64_t> m_sequence;
+    static std::list<Job> m_queue;
+    static std::vector<Handle*> m_workers;
+    static uint64_t m_ticks;
+    static uv_async_t m_async;
+    static uv_mutex_t m_mutex;
+    static uv_rwlock_t m_rwlock;
+    static uv_timer_t m_timer;
+    static xmrig::Controller *m_controller;
+    static int m_maxtemp;
+    static int m_falloff;
+    static int m_fanlevel;
 
-	static int m_maxtemp;
-	static int m_falloff;
-	static int m_workercount;
-	
 };
 
 

@@ -29,7 +29,7 @@
 
 #include "common/xmrig.h"
 #include "rapidjson/fwd.h"
-#include "amd/GpuContext.h"
+
 
 namespace xmrig {
 
@@ -60,8 +60,6 @@ public:
     virtual rapidjson::Value toConfig(rapidjson::Document &doc) const = 0;
     virtual size_t index() const                                      = 0;
     virtual Type type() const                                         = 0;
-	virtual GpuContext *ctx() const									  = 0;
-	virtual void setCtx(GpuContext *ctx)			   			      = 0;
 
 #   ifndef XMRIG_NO_API
     virtual rapidjson::Value toAPI(rapidjson::Document &doc) const = 0;

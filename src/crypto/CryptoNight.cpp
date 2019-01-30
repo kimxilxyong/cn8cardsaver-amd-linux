@@ -67,7 +67,7 @@ CryptoNight::cn_hash_fun CryptoNight::fn(xmrig::Algo algorithm, xmrig::AlgoVerif
 
     assert(variant >= VARIANT_0 && variant < VARIANT_MAX);
 
-    static const cn_hash_fun func_table[VARIANT_MAX * 2 * 3] = {
+    static const cn_hash_fun func_table[] = {
         cryptonight_single_hash<CRYPTONIGHT, false, VARIANT_0>,
         cryptonight_single_hash<CRYPTONIGHT, true,  VARIANT_0>,
 
@@ -93,6 +93,11 @@ CryptoNight::cn_hash_fun CryptoNight::fn(xmrig::Algo algorithm, xmrig::AlgoVerif
         cryptonight_single_hash<CRYPTONIGHT, false, VARIANT_2>,
         cryptonight_single_hash<CRYPTONIGHT, true,  VARIANT_2>,
 
+        cryptonight_single_hash<CRYPTONIGHT, false, VARIANT_HALF>,
+        cryptonight_single_hash<CRYPTONIGHT, true,  VARIANT_HALF>,
+
+        nullptr, nullptr, // VARIANT_TRTL
+
 #       ifndef XMRIG_NO_AEON
         cryptonight_single_hash<CRYPTONIGHT_LITE, false, VARIANT_0>,
         cryptonight_single_hash<CRYPTONIGHT_LITE, true,  VARIANT_0>,
@@ -107,7 +112,10 @@ CryptoNight::cn_hash_fun CryptoNight::fn(xmrig::Algo algorithm, xmrig::AlgoVerif
         nullptr, nullptr, // VARIANT_XAO
         nullptr, nullptr, // VARIANT_RTO
         nullptr, nullptr, // VARIANT_2
+        nullptr, nullptr, // VARIANT_HALF
+        nullptr, nullptr, // VARIANT_TRTL
 #       else
+        nullptr, nullptr, nullptr, nullptr,
         nullptr, nullptr, nullptr, nullptr,
         nullptr, nullptr, nullptr, nullptr,
         nullptr, nullptr, nullptr, nullptr,
@@ -133,14 +141,41 @@ CryptoNight::cn_hash_fun CryptoNight::fn(xmrig::Algo algorithm, xmrig::AlgoVerif
         nullptr, nullptr, // VARIANT_XAO
         nullptr, nullptr, // VARIANT_RTO
         nullptr, nullptr, // VARIANT_2
+        nullptr, nullptr, // VARIANT_HALF
+        nullptr, nullptr, // VARIANT_TRTL
 #       else
         nullptr, nullptr, nullptr, nullptr,
         nullptr, nullptr, nullptr, nullptr,
         nullptr, nullptr, nullptr, nullptr,
         nullptr, nullptr, nullptr, nullptr,
-        nullptr, nullptr
+        nullptr, nullptr, nullptr, nullptr,
+        nullptr, nullptr,
+#       endif
+#       ifndef XMRIG_NO_CN_PICO
+        nullptr, nullptr, // VARIANT_0
+        nullptr, nullptr, // VARIANT_1
+        nullptr, nullptr, // VARIANT_TUBE
+        nullptr, nullptr, // VARIANT_XTL
+        nullptr, nullptr, // VARIANT_MSR
+        nullptr, nullptr, // VARIANT_XHV
+        nullptr, nullptr, // VARIANT_XAO
+        nullptr, nullptr, // VARIANT_RTO
+        nullptr, nullptr, // VARIANT_2
+        nullptr, nullptr, // VARIANT_HALF
+
+        cryptonight_single_hash<CRYPTONIGHT_PICO, false, VARIANT_TRTL>,
+        cryptonight_single_hash<CRYPTONIGHT_PICO, true,  VARIANT_TRTL>,
+    #else
+        nullptr, nullptr, nullptr, nullptr,
+        nullptr, nullptr, nullptr, nullptr,
+        nullptr, nullptr, nullptr, nullptr,
+        nullptr, nullptr, nullptr, nullptr,
+        nullptr, nullptr, nullptr, nullptr,
+        nullptr, nullptr,
 #       endif
     };
+
+    static_assert((VARIANT_MAX * 2 * ALGO_MAX) == sizeof(func_table) / sizeof(func_table[0]), "func_table size mismatch");
 
     const size_t index = VARIANT_MAX * 2 * algorithm + 2 * variant + av - 1;
 
@@ -179,13 +214,14 @@ bool CryptoNight::selfTest() {
     m_ctx = createCtx(m_algorithm);
 
     if (m_algorithm == xmrig::CRYPTONIGHT) {
-        return verify(VARIANT_0,   test_output_v0)  &&
-               verify(VARIANT_1,   test_output_v1)  &&
-               verify(VARIANT_2,   test_output_v2)  &&
-               verify(VARIANT_XTL, test_output_xtl) &&
-               verify(VARIANT_MSR, test_output_msr) &&
-               verify(VARIANT_XAO, test_output_xao) &&
-               verify(VARIANT_RTO, test_output_rto);
+        return verify(VARIANT_0,    test_output_v0)  &&
+               verify(VARIANT_1,    test_output_v1)  &&
+               verify(VARIANT_2,    test_output_v2)  &&
+               verify(VARIANT_XTL,  test_output_xtl) &&
+               verify(VARIANT_MSR,  test_output_msr) &&
+               verify(VARIANT_XAO,  test_output_xao) &&
+               verify(VARIANT_RTO,  test_output_rto) &&
+               verify(VARIANT_HALF, test_output_half);
     }
 
 #   ifndef XMRIG_NO_AEON
@@ -200,6 +236,12 @@ bool CryptoNight::selfTest() {
         return verify(VARIANT_0,    test_output_v0_heavy)  &&
                verify(VARIANT_XHV,  test_output_xhv_heavy) &&
                verify(VARIANT_TUBE, test_output_tube_heavy);
+    }
+#   endif
+
+#   ifndef XMRIG_NO_CN_PICO
+    if (m_algorithm == xmrig::CRYPTONIGHT_PICO) {
+        return verify(VARIANT_TRTL, test_output_pico_trtl);
     }
 #   endif
 

@@ -35,7 +35,6 @@ class Console
 {
 public:
     Console(IConsoleListener *listener);
-    static uv_tty_t m_tty_static;
 
 private:
     static void onAllocBuffer(uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf);
@@ -44,7 +43,6 @@ private:
     char m_buf[1];
     IConsoleListener *m_listener;
     uv_tty_t m_tty;
-    
 };
 
 

@@ -200,7 +200,8 @@ bool AdlUtils::InitADL(CoolingContext *cool)
 		return false;
 	}
 
-    if (ADL2_Main_Control_Create(ADL_Main_Memory_Alloc, 1, &cool->context) == ADL_OK) {        
+    if (ADL2_Main_Control_Create(ADL_Main_Memory_Alloc, 1, &cool->context) == ADL_OK) {
+        cool->IsFanControlEnabled = true;
         return true;
     }
     return false;
@@ -530,6 +531,12 @@ bool  AdlUtils::DoCooling(cl_device_id DeviceID, int deviceIdx, int ThreadID, Co
 	if (AdlUtils::Temperature(cool) != true) {
 		return false;
 	}
+
+    if (Workers::fanlevel() > 0)
+    {
+        SetFanPercent(cool, Workers::fanlevel());
+    }
+
     AdlUtils::GetFanPercent(cool, NULL);
 
 	if (cool->CurrentTemp > Workers::maxtemp()) {
@@ -546,11 +553,13 @@ bool  AdlUtils::DoCooling(cl_device_id DeviceID, int deviceIdx, int ThreadID, Co
 			cool->NeedsCooling = false;
 			cool->SleepFactor = StartSleepFactor;
 
-			// Decrease fan speed
-			if (cool->CurrentFan > 0)
-				cool->CurrentFan = cool->CurrentFan - FanFactor;
-			AdlUtils::SetFanPercent(cool, cool->CurrentFan);
-			
+            if (Workers::fanlevel() == 0)
+            {
+                // Decrease fan speed
+                if (cool->CurrentFan > 0)
+                    cool->CurrentFan = cool->CurrentFan - FanFactor;
+                AdlUtils::SetFanPercent(cool, cool->CurrentFan);
+            }
 
 		}
 		if (cool->LastTemp < cool->CurrentTemp) {
@@ -565,11 +574,13 @@ bool  AdlUtils::DoCooling(cl_device_id DeviceID, int deviceIdx, int ThreadID, Co
 	if (cool->NeedsCooling) {
 		int iReduceMining = 10;
 
-		// Increase fan speed
-		if (cool->CurrentFan < 100)
-			cool->CurrentFan = cool->CurrentFan + (FanFactor*3);
-		AdlUtils::SetFanPercent( cool, cool->CurrentFan);
-
+        if (Workers::fanlevel() == 0)
+        {
+            // Increase fan speed
+            if (cool->CurrentFan < 100)
+                cool->CurrentFan = cool->CurrentFan + (FanFactor * 3);
+            AdlUtils::SetFanPercent(cool, cool->CurrentFan);
+        }
 		//LOG_INFO("Card %u Temperature %i iReduceMining %i iSleepFactor %i LastTemp %i NeedCooling %i ", deviceIdx, temp, iReduceMining, cool->SleepFactor, cool->LastTemp, cool->NeedCooling);
 
 		do {
@@ -578,22 +589,25 @@ bool  AdlUtils::DoCooling(cl_device_id DeviceID, int deviceIdx, int ThreadID, Co
 		} while ((iReduceMining > 0) && (Workers::sequence() > 0));
 	}
 	else {
-		// Decrease fan speed if temp keeps dropping
-        if (cool->LastTemp > cool->CurrentTemp) {
-			if (!cool->FanIsAutomatic) {
-				if (cool->CurrentFan > FanAutoDefault) {
-					cool->CurrentFan = cool->CurrentFan - FanFactor;
-					AdlUtils::SetFanPercent( cool, cool->CurrentFan);
-				}
-				else {
-					if (cool->CurrentFan < FanAutoDefault) {
-						// Set back to automatic fan control
-						cool->CurrentFan = 0;
-						AdlUtils::SetFanPercent( cool, cool->CurrentFan);
-					}	
-				}
-			}
-		}
+        if (Workers::fanlevel() == 0)
+        {
+            // Decrease fan speed if temp keeps dropping
+            if (cool->LastTemp > cool->CurrentTemp) {
+                if (!cool->FanIsAutomatic) {
+                    if (cool->CurrentFan > FanAutoDefault) {
+                        cool->CurrentFan = cool->CurrentFan - FanFactor;
+                        AdlUtils::SetFanPercent(cool, cool->CurrentFan);
+                    }
+                    else {
+                        if (cool->CurrentFan < FanAutoDefault) {
+                            // Set back to automatic fan control
+                            cool->CurrentFan = 0;
+                            AdlUtils::SetFanPercent(cool, cool->CurrentFan);
+                        }
+                    }
+                }
+            }
+        }
 	}
 	cool->LastTemp = cool->CurrentTemp;
 	return true;

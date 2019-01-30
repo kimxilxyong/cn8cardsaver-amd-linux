@@ -41,8 +41,6 @@
 #include "core/Controller.h"
 #include "Summary.h"
 #include "version.h"
-#include "interfaces/IThread.h"
-#include "workers/OclThread.h"
 
 
 static void print_cpu(xmrig::Config *config)
@@ -86,25 +84,11 @@ static void print_commands(xmrig::Config *config)
 
 static void print_maxtemp(xmrig::Config *config)
 {
-	if (config->isColors()) {
-		Log::i()->text(GREEN_BOLD(" * ") WHITE_BOLD("MAX TEMP     ") YELLOW("%zu") WHITE_BOLD(" Celsius,") YELLOW(" %zu") WHITE_BOLD(" Celsius Max Temp falloff"), config->maxtemp(), config->falloff());
-	}
-	else {
-		Log::i()->text(" * MAX TEMP     %zu Celsius %zu Max Temp falloff", config->maxtemp(), config->falloff());
-	}
-}
-
-static void print_gpu(xmrig::Config *config)
-{
-    for (const xmrig::IThread *t : config->threads()) {
-        auto thread = static_cast<const OclThread *>(t);
-        Log::i()->text(config->isColors() ? GREEN_BOLD(" * ") WHITE_BOLD("GPU #%-8zu") YELLOW("PCI:%04x:%02x:%02x")
-                                          : " * GPU #%-8zuPCI:%04x:%02x:%02x",
-                       thread->index(),
-                       thread->pciDomainID(),
-                       thread->pciBusID(),
-                       thread->pciDeviceID()
-        );
+    if (config->isColors()) {
+        Log::i()->text(GREEN_BOLD(" * ") WHITE_BOLD("MAX TEMP     ") YELLOW("%zu") WHITE_BOLD(" Celsius,") YELLOW(" %zu") WHITE_BOLD(" Celsius Max Temp falloff,") WHITE_BOLD(" Fan level control ") YELLOW("%d"), config->maxtemp(), config->falloff(), config->fanlevel());
+    }
+    else {
+        Log::i()->text(" * MAX TEMP     %zu Celsius %zu Max Temp falloff", config->maxtemp(), config->falloff());
     }
 }
 
@@ -112,13 +96,12 @@ void Summary::print(xmrig::Controller *controller)
 {
     controller->config()->printVersions();
     print_cpu(controller->config());
-    //print_gpu(controller->config());
     print_algo(controller->config());
     controller->config()->printPools();
     controller->config()->printAPI();
 
     print_commands(controller->config());
-	print_maxtemp(controller->config());
+    print_maxtemp(controller->config());
 }
 
 

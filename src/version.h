@@ -5,7 +5,8 @@
  * Copyright 2014-2016 Wolf9466    <https://github.com/OhGodAPet>
  * Copyright 2016      Jay D Dee   <jayddee246@gmail.com>
  * Copyright 2017-2018 XMR-Stak    <https://github.com/fireice-uk>, <https://github.com/psychocrypt>
- * Copyright 2016-2018 XMRig       <https://github.com/xmrig>, <support@xmrig.com>
+ * Copyright 2018-2019 SChernykh   <https://github.com/SChernykh>
+ * Copyright 2016-2019 XMRig       <https://github.com/xmrig>, <support@xmrig.com>
  *
  *   This program is free software: you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -24,18 +25,18 @@
 #ifndef XMRIG_VERSION_H
 #define XMRIG_VERSION_H
 
-#define APP_ID        "cn8cardsaver"
-#define APP_NAME      "cn8cardsaver-amd"
-#define APP_DESC      "Cryptonight OpenCL miner with GPU temperature control"
-#define APP_VERSION   "1.0.3"
-#define APP_DOMAIN    "cn8cardsaver.com"
-#define APP_SITE      "www.cn8cardsaver.com"
-#define APP_COPYRIGHT "Copyright (C) 2018 cn8cardsaver.com"
+#define APP_ID        "xmrig-amd"
+#define APP_NAME      "XMRig-AMD"
+#define APP_DESC      "XMRig OpenCL miner"
+#define APP_VERSION   "2.10.0"
+#define APP_DOMAIN    "xmrig.com"
+#define APP_SITE      "www.xmrig.com"
+#define APP_COPYRIGHT "Copyright (C) 2016-2018 xmrig.com"
 #define APP_KIND      "amd"
 
-#define APP_VER_MAJOR  1
-#define APP_VER_MINOR  0
-#define APP_VER_PATCH  3
+#define APP_VER_MAJOR  2
+#define APP_VER_MINOR  10
+#define APP_VER_PATCH  0
 
 #ifdef _MSC_VER
 #   if (_MSC_VER >= 1910)

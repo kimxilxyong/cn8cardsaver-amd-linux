@@ -6,8 +6,8 @@
  * Copyright 2016      Jay D Dee   <jayddee246@gmail.com>
  * Copyright 2017-2018 XMR-Stak    <https://github.com/fireice-uk>, <https://github.com/psychocrypt>
  * Copyright 2018      Lee Clagett <https://github.com/vtnerd>
- * Copyright 2018      SChernykh   <https://github.com/SChernykh>
- * Copyright 2016-2018 XMRig       <https://github.com/xmrig>, <support@xmrig.com>
+ * Copyright 2018-2019 SChernykh   <https://github.com/SChernykh>
+ * Copyright 2016-2019 XMRig       <https://github.com/xmrig>, <support@xmrig.com>
  *
  *   This program is free software: you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -38,10 +38,15 @@
 class Job
 {
 public:
+    // Max blob size is 84 (75 fixed + 9 variable), aligned to 96. https://github.com/xmrig/xmrig/issues/1 Thanks fireice-uk.
+    // SECOR increase requirements for blob size: https://github.com/xmrig/xmrig/issues/913
+    static constexpr const size_t kMaxBlobSize = 128;
+
     Job();
-    Job(int poolId, bool nicehash, const xmrig::Algorithm &algorithm, const xmrig::Id &clientId, int temp, bool needscooling, int card, int sleepfactor, int fan);
+    Job(int poolId, bool nicehash, const xmrig::Algorithm &algorithm, const xmrig::Id &clientId);
     ~Job();
 
+    bool isEqual(const Job &other) const;
     bool setBlob(const char *blob);
     bool setTarget(const char *target);
     void setAlgorithm(const char *algo);
@@ -56,11 +61,6 @@ public:
     inline const xmrig::Id &id() const                { return m_id; }
     inline int poolId() const                         { return m_poolId; }
     inline int threadId() const                       { return m_threadId; }
-    inline int temp() const                           { return m_temp; }
-    inline int fan() const                            { return m_fan; }
-    inline bool needscooling() const                  { return m_needscooling; }
-    inline int sleepfactor() const                    { return m_sleepfactor; }
-    inline int card() const                           { return m_card; }
     inline size_t size() const                        { return m_size; }
     inline uint32_t *nonce()                          { return reinterpret_cast<uint32_t*>(m_blob + 39); }
     inline uint32_t diff() const                      { return static_cast<uint32_t>(m_diff); }
@@ -71,11 +71,6 @@ public:
     inline void setThreadId(int threadId)             { m_threadId = threadId; }
     inline void setVariant(const char *variant)       { m_algorithm.parseVariant(variant); }
     inline void setVariant(int variant)               { m_algorithm.parseVariant(variant); }
-	inline void setTemp(int temp)                     { m_temp = temp; }
-    inline void setFan(int fan)                       { m_fan = fan; }
-	inline void setNeedscooling(bool needscooling)    { m_needscooling = needscooling; }
-    inline void setSleepfactor(int sleepfactor)       { m_sleepfactor = sleepfactor; }
-	inline void setCard(int card)                     { m_card = card; }
 
 #   ifdef XMRIG_PROXY_PROJECT
     inline char *rawBlob()                 { return m_rawBlob; }
@@ -91,8 +86,8 @@ public:
     static char *toHex(const unsigned char* in, unsigned int len);
 #   endif
 
-    bool operator==(const Job &other) const;
-    bool operator!=(const Job &other) const;
+    inline bool operator==(const Job &other) const { return isEqual(other); }
+    inline bool operator!=(const Job &other) const { return  !isEqual(other); }
 
 private:
     xmrig::Variant variant() const;
@@ -104,18 +99,13 @@ private:
     size_t m_size;
     uint64_t m_diff;
     uint64_t m_target;
-    uint8_t m_blob[96]; // Max blob size is 84 (75 fixed + 9 variable), aligned to 96. https://github.com/xmrig/xmrig/issues/1 Thanks fireice-uk.
+    uint8_t m_blob[kMaxBlobSize];
     xmrig::Algorithm m_algorithm;
     xmrig::Id m_clientId;
     xmrig::Id m_id;
-	int m_temp;
-    int m_fan;
-	bool m_needscooling;
-    int m_sleepfactor;
-	int m_card;
 
 #   ifdef XMRIG_PROXY_PROJECT
-    char m_rawBlob[176];
+    char m_rawBlob[kMaxBlobSize * 2 + 8];
     char m_rawTarget[24];
 #   endif
 };
