@@ -118,11 +118,12 @@ void OclWorker::start()
             
             const int64_t delay = interleaveAdjustDelay();
             if (delay > 0) {
+                LOG_WARN("Thread #%zu is going to be paused for %" PRId64 " ms to adjust interleaving", m_id, delay);
                 std::this_thread::sleep_for(std::chrono::milliseconds(delay));
 
-#               ifdef APP_INTERLEAVE_DEBUG
+#               //ifdef APP_INTERLEAVE_DEBUG
                 LOG_WARN("Thread #%zu was paused for %" PRId64 " ms to adjust interleaving", m_id, delay);
-#               endif
+#               //endif
             }
 
             const int64_t t = xmrig::steadyTimestamp();
@@ -154,9 +155,9 @@ void OclWorker::start()
 
             const int64_t delay = resumeDelay();
             if (delay > 0) {
-#               ifdef APP_INTERLEAVE_DEBUG
+#               //ifdef APP_INTERLEAVE_DEBUG
                 LOG_WARN("Thread #%zu will be paused for %" PRId64 " ms to before resuming", m_id, delay);
-#               endif
+#               //endif
 
                 std::this_thread::sleep_for(std::chrono::milliseconds(delay));
             }
@@ -164,6 +165,8 @@ void OclWorker::start()
 
         consumeJob();
     }
+
+    LOG_WARN("Thread #%zu EXITED", m_id);
 }
 
 

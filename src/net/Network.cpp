@@ -178,9 +178,9 @@ void Network::onResultAccepted(IStrategy *strategy, Client *client, const Submit
             m_state.accepted, m_state.rejected, result.diff, error, result.elapsed);
     }
     else {
-        LOG_INFO(isColors() ? "\x1B[1;32maccepted\x1B[0m (%" PRId64 "/%" PRId64 ") diff \x1B[1;37m%u\x1B[0m \x1B[1;30m(%" PRIu64 " ms)"
-            : "accepted (%" PRId64 "/%" PRId64 ") diff %u (%" PRIu64 " ms)",
-            m_state.accepted, m_state.rejected, result.diff, result.elapsed);
+        LOG_INFO(isColors() ? "\x1B[1;32maccepted\x1B[0m (%" PRId64 "/%" PRId64 ") diff \x1B[1;37m%u\x1B[0m \x1B[1;30m(%" PRIu64 " ms) (id %" PRId64 ")"
+            : "accepted (%" PRId64 "/%" PRId64 ") diff %u (%" PRIu64 " ms) (id %" PRIu64 ")",
+            m_state.accepted, m_state.rejected, result.diff, result.elapsed, result.seq);
     }
 }
 
